@@ -1,0 +1,6 @@
+build/
+output/
+*.zip
+*.paf.exe
+*.pdb
+__pycache__/

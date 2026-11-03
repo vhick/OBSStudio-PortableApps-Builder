@@ -1,0 +1,13 @@
+OBS Studio Portable native launcher (this builder)
+Copyright (c) 2026 contributors to the independent OBS Studio Portable builder kit.
+
+Licensed under GNU GPL version 2 or any later version, at your option.
+No warranty is supplied. All OBS Studio source, trademarks and bundled dependency
+licenses remain with their respective upstream licensors. You may obtain a copy
+of GPL-2.0 from https://www.gnu.org/licenses/old-licenses/gpl-2.0.html .
+
+The source code for the C++ launcher is shipped in this independent builder's
+launcher/OBSStudioPortable.cpp and packaged in Other/Source/.
+
+This packaging is independent and not sponsored, approved or certified by
+OBS Project or PortableApps.com.

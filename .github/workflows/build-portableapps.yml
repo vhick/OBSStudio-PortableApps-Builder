@@ -1,0 +1,150 @@
+name: Build OBS Studio PortableApps (verified ZIP + optional official PAF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_version:
+        description: 'latest or an exact stable OBS version (for example 33.0.1)'
+        required: true
+        default: 'latest'
+        type: string
+      require_official_paf:
+        description: 'Fail build instead of publishing ZIP only when official PAF fails'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: obs-portable-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-builder:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout this independent builder
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve latest stable OBS version and verified binary digest
+        id: upstream
+        run: ./scripts/resolve.ps1 -Version '${{ inputs.upstream_version }}'
+
+      - name: Check existing release before downloading 224MB upstream archive
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r1
+        run: |
+          $result = & gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release already exists: $env:RELEASE_TAG"
+            'skip=true' >> $env:GITHUB_OUTPUT
+          } elseif (([string]($result -join ' ')) -match '(?i)(not found|http 404|release not found)') {
+            'skip=false' >> $env:GITHUB_OUTPUT
+          } else {
+            throw "Could not check existing release; refusing to assume missing: $result"
+          }
+
+      - name: Verify shared publisher action version and interface
+        if: steps.existing.outputs.skip != 'true'
+        run: |
+          $source='https://raw.githubusercontent.com/vhick/portable-release-publisher/v1.1.1/action.yml'
+          $content=(Invoke-WebRequest -Uri $source -TimeoutSec 30).Content
+          foreach($inputName in @('files','tag','release-title','tag-prefix','keep-releases','prune','dry-run')) {
+            if($content -notmatch "(?m)^\s{2}$([regex]::Escape($inputName)):") {
+              throw "Publisher v1.1.1 missing $inputName input"
+            }
+          }
+          if($content -notmatch 'Publish portable ZIPs and PortableApps') { throw 'Unexpected publisher action' }
+          Write-Host 'Publisher interface confirmed for v1.1.1.'
+
+      - name: Retrieve and verify official OBS x64 portable ZIP
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 12
+        run: ./scripts/download-obs.ps1
+
+      - name: Compile genuine Windows C++ launcher with upstream OBS icon
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 5
+        run: ./scripts/compile-launcher.ps1
+
+      - name: Create PortableApps staging and metadata
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 6
+        run: ./scripts/stage.ps1
+
+      - name: Windows runtime TraceGuard and OBS startup smoke tests
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 8
+        run: ./tests/windows-smoke.ps1
+
+      - name: Package validated PortableApps ZIP
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 8
+        run: ./scripts/package.ps1
+
+      - name: Try official PortableApps.com Installer 3.9.22 (no GUI)
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 9
+        env:
+          REQUIRE_OFFICIAL_PAF: ${{ inputs.require_official_paf }}
+        run: |
+          if($env:REQUIRE_OFFICIAL_PAF -eq 'true') {
+            ./scripts/build-official-paf.ps1 -RequirePaf
+          } else {
+            ./scripts/build-official-paf.ps1
+          }
+
+      - name: Final ZIP, PAF and metadata validation
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 5
+        run: ./scripts/check-packages.ps1
+
+      - name: Publisher preflight dry run - no release edits
+        if: steps.existing.outputs.skip != 'true'
+        uses: vhick/portable-release-publisher@v1.1.1
+        with:
+          files: |
+            output/*.zip
+            output/*.paf.exe
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r1
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r1)
+          tag-prefix: portable-
+          keep-releases: '3'
+          prune: 'false'
+          dry-run: 'true'
+
+      - name: Publish validated packages to THIS repository only
+        if: steps.existing.outputs.skip != 'true'
+        uses: vhick/portable-release-publisher@v1.1.1
+        with:
+          files: |
+            output/*.zip
+            output/*.paf.exe
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r1
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r1)
+          tag-prefix: portable-
+          keep-releases: '3'
+          prune: 'false'
+          dry-run: 'false'
+
+      - name: Confirm GitHub Releases assets
+        if: steps.existing.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r1
+        run: |
+          $release = gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json assets | ConvertFrom-Json
+          $names=@($release.assets | ForEach-Object name)
+          $local=@(Get-ChildItem './output' -File | Where-Object { $_.Name -match '(\.zip|\.paf\.exe)$' } | ForEach-Object Name)
+          foreach($name in $local) { if($names -cnotcontains $name) { throw "Release missing expected asset $name" } }
+          Write-Host "Published assets: $($names -join ', ')"
