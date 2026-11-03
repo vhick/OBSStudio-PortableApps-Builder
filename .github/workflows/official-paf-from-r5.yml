@@ -1,0 +1,122 @@
+name: Official OBS PAF from existing r5 ZIP (no OBS rebuild)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_release_tag:
+        description: 'Existing successful r5 release to reuse (must contain ZIP + SHA256SUMS.txt)'
+        required: true
+        default: 'portable-obs-v33.0.1-r5'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: obs-official-paf-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  paf-only:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout independent builder (no OBS source checkout)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run PAF-only static regression checks
+        run: python ./tests/paf-only-static.py
+
+      - name: Check r5 source release and locate existing verified ZIP
+        id: source
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RELEASE_TAG: ${{ inputs.source_release_tag }}
+        run: ./scripts/resolve-paf-source.ps1 -SourceReleaseTag $env:SOURCE_RELEASE_TAG
+
+      - name: Check target r6 tag before downloading 200+ MB ZIP
+        id: existing
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r6
+        run: ./scripts/check-existing-release.ps1
+
+      - name: Verify Universal Portable Release Publisher v1.1.1 interface
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 2
+        run: |
+          $url='https://raw.githubusercontent.com/vhick/portable-release-publisher/v1.1.1/action.yml'
+          $content=(Invoke-WebRequest -Uri $url -TimeoutSec 40).Content
+          foreach($key in @('files','tag','release-title','tag-prefix','keep-releases','prune','dry-run')) {
+            if($content -notmatch "(?m)^\s{2}$([regex]::Escape($key)):") { throw "Publisher interface missing: $key" }
+          }
+          Write-Host 'Publisher v1.1.1 verified.'
+
+      - name: Download existing r5 ZIP and SHA-256, validate and restore stage
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 12
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RELEASE_TAG: ${{ steps.source.outputs.source_tag }}
+          SOURCE_VERSION: ${{ steps.source.outputs.version }}
+        run: ./scripts/restore-r5-stage.ps1 -SourceReleaseTag $env:SOURCE_RELEASE_TAG -Version $env:SOURCE_VERSION
+
+      - name: Produce official PortableApps.com PAF (mandatory, no GUI wizard)
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 12
+        run: ./scripts/build-official-paf.ps1 -RequirePaf -PackageRevision r6
+
+      - name: Check official PAF provenance and package integrity
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 4
+        env:
+          SOURCE_VERSION: ${{ steps.source.outputs.version }}
+        run: ./scripts/validate-paf-only.ps1 -Version $env:SOURCE_VERSION
+
+      - name: Publisher v1.1.1 dry-run before any release mutation
+        if: steps.existing.outputs.skip != 'true'
+        uses: vhick/portable-release-publisher@v1.1.1
+        with:
+          files: output/*.paf.exe
+          tag: portable-obs-v${{ steps.source.outputs.version }}-r6
+          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from existing r5 ZIP (r6)
+          tag-prefix: portable-
+          keep-releases: '3'
+          prune: 'false'
+          dry-run: 'true'
+
+      - name: Publish PAF alone into new r6 release (keep r5 ZIP untouched)
+        if: steps.existing.outputs.skip != 'true'
+        uses: vhick/portable-release-publisher@v1.1.1
+        with:
+          files: output/*.paf.exe
+          tag: portable-obs-v${{ steps.source.outputs.version }}-r6
+          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from existing r5 ZIP (r6)
+          tag-prefix: portable-
+          keep-releases: '3'
+          prune: 'false'
+          dry-run: 'false'
+
+      - name: Confirm new r6 release contains exactly the expected PAF and checksum
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r6
+        run: |
+          $data = & gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0) { throw 'Published release lookup failed.' }
+          $names=@($data.assets | ForEach-Object { $_.name })
+          $expected="OBSStudioPortable_${{ steps.source.outputs.version }}_r6_win64.paf.exe"
+          if($names.Count -ne 2 -or $names -cnotcontains $expected -or $names -cnotcontains 'SHA256SUMS.txt') {
+            throw "Unexpected r6 release assets: $($names -join ', ')"
+          }
+          Write-Host "PAF published and verified: $expected"
+          Write-Host 'Original r5 release and ZIP remain unchanged.'

@@ -42,3 +42,8 @@ The workflow contains runtime gates that are intended to execute on `windows-202
 - Full compilation failed with `LNK2019` for `__imp_MessageBoxW` and `__imp_CommandLineToArgvW`; `LNK1120` reported 2 unresolved externals. This is the currently observed failure.
 - r5 links the documented Windows import libraries and replaces syntax-only preflight with compile-and-link, but the r5 fix is **not** verified by a live Windows run yet.
 - r5 replaces Windows-incompatible OBS `--version` CI calls with isolated launcher storage tests; actual OBS interface startup/recording remain manual tests.
+
+
+## r6 PAF-only workflow (2026-11-03)
+
+User confirmed r5 builds and publishes a working ZIP but no PAF. The precise error message in the optional r5 PAF step was not supplied. This r6 project adds mandatory PAF-only recovery from the published r5 ZIP. Locally verified: both YAML workflows parse and both Python static test suites pass; project ZIP integrity verified. **Not executed here:** Windows PowerShell, downloading the r5 release, genuine PortableApps.com Installer compilation, PAF extraction and checksums on Windows, GUI installer acceptance, or Release publishing.

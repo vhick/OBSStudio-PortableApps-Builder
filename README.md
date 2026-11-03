@@ -1,3 +1,35 @@
+# OBS Studio PortableApps Builder — r6 PAF-only recovery
+
+**This revision adds a new, separate workflow that creates an official PortableApps `.paf.exe` from the already-successful OBS r5 ZIP. It does not re-download OBS upstream, recompile OBS, or recompile the native launcher.** The existing working r5 ZIP and its GitHub Release are preserved.
+
+## What to run (recommended)
+
+1. In **GitHub Desktop**, open your existing independent `OBSStudio-PortableApps-Builder` repository and select **Repository → Show in Explorer**.
+2. Extract this ZIP and copy **everything inside** `OBSStudio-PortableApps-Builder-r6` into the repository, including `.github`, replacing matching files. **Do not overwrite or remove `.git`**.
+3. Commit `Add official PAF-only recovery workflow - r6`, then **Push origin**.
+4. On GitHub, open **Actions → Official OBS PAF from existing r5 ZIP (no OBS rebuild) → Run workflow**.
+5. Leave `source_release_tag` as `portable-obs-v33.0.1-r5` if that is the release containing your successful OBS ZIP. If your successful r5 release is another upstream version, change the input to that precise version's `portable-obs-vX.Y.Z-r5` tag.
+6. On success, open **Releases** and select `portable-obs-v33.0.1-r6` (or the matching upstream version). It should contain `OBSStudioPortable_33.0.1_r6_win64.paf.exe` plus `SHA256SUMS.txt`. Your **original r5 ZIP stays in the original r5 release**.
+7. Use **PortableApps Platform → Apps → Install a New App** and select the r6 `.paf.exe` file. Test this installer on a **separate test directory** first, then test upgrading an existing OBS portable folder after backing up its `Data` directory.
+
+**Do not run the old “Build OBS Studio PortableApps (verified ZIP + optional official PAF)” workflow when your goal is to test PAF-only.** That old workflow remains available as your r5 build baseline. The new r6 job downloads only your published r5 ZIP, its existing checksum file, and the official PortableApps packager.
+
+## What's fixed and what is not yet verified
+
+- The r5 pipeline used optional installer generation, so a failed PAF attempt could still produce a successful ZIP-only workflow. **Without that successful run's installer log, the precise original PAF failure cannot be established.**
+- r6 makes PAF **mandatory**: it does not publish a misleading “success” unless the genuine packager produces a PE installer, 7-Zip validates and extracts the generated installer, and the embedded OBS and portable launcher executables match the verified r5 ZIP by SHA-256.
+- r6 checks source release and destination tag before downloading the large ZIP, checks both release asset names, downloads from your existing builder repository (using `GITHUB_TOKEN`), validates the original publisher's `SHA256SUMS.txt`, and does not reconstruct the app binaries.
+- r6 retains the pinned PortableApps.com Installer v3.9.22 and its published SourceForge SHA-256, but improves error reports, generated filename discovery, and output provenance. It does **not** relabel a generic NSIS build as official.
+- r6 publishes a **PAF-only r6 release** through `vhick/portable-release-publisher@v1.1.1`. This avoids recompressing and reuploading the existing large r5 ZIP. No workflow uses GitHub Actions build artifacts, pruning or third-party release publishers.
+- The package's embedded `appinfo.ini` remains the original verified **r5** metadata, because the r6 installer intentionally packages the unmodified r5 application staging content. The `r6` filename/tag refer to the *installer packaging revision*, not a new OBS or launcher version.
+- This kit has passed Linux-based static and YAML checks only. **Official Windows PAF compilation, GUI installation, upgrades, data persistence and release publishing have not been live-tested in this revision.** In case of a failure, the PAF-only run will halt and print the error rather than silently falling back to ZIP-only.
+
+See [PAF recovery details and troubleshooting](docs/PAF-RECOVERY-r6.md). The original r5 documentation follows below for reference.
+
+---
+
+## Original r5 builder documentation (preserved)
+
 # OBS Studio PortableApps Builder — r5
 
 An independent, GitHub Actions-driven builder for **OBS Studio Windows x64**.
