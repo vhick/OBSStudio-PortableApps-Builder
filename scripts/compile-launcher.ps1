@@ -22,12 +22,12 @@ if(-not $msvc) {
   Assert ([bool]$vs) 'Microsoft C++ build tools not installed'
   $vcvars=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
   Assert (Test-Path $vcvars) 'Missing vcvars64.bat'
-  $command='call "'+$vcvars+'" && rc /nologo /fo"'+$root+'\build\launcher-icon.res" "'+$resource+'" && cl /nologo /std:c++17 /EHsc /W4 /O2 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /Fe:"'+$root+'\build\OBSStudioPortable.exe" "'+$root+'\launcher\OBSStudioPortable.cpp" "'+$root+'\build\launcher-icon.res" /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED'
+  $command='call "'+$vcvars+'" && rc /nologo /fo"'+$root+'\build\launcher-icon.res" "'+$resource+'" && cl /nologo /std:c++17 /EHsc /W4 /O2 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /Fe:"'+$root+'\build\OBSStudioPortable.exe" "'+$root+'\launcher\OBSStudioPortable.cpp" "'+$root+'\build\launcher-icon.res" /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED User32.lib Shell32.lib'
   & cmd.exe /d /s /c $command
 } else {
   & rc.exe /nologo "/fo$root/build/launcher-icon.res" $resource
   Assert ($LASTEXITCODE -eq 0) 'Windows resource compiler failed'
-  & $msvc.Source /nologo /std:c++17 /EHsc /W4 /O2 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN "/Fe:$root/build/OBSStudioPortable.exe" "$root/launcher/OBSStudioPortable.cpp" "$root/build/launcher-icon.res" /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED
+  & $msvc.Source /nologo /std:c++17 /EHsc /W4 /O2 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN "/Fe:$root/build/OBSStudioPortable.exe" "$root/launcher/OBSStudioPortable.cpp" "$root/build/launcher-icon.res" /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED User32.lib Shell32.lib
 }
 Assert ($LASTEXITCODE -eq 0) "Native launcher compilation failed: $LASTEXITCODE"
 Test-Pe "$root/build/OBSStudioPortable.exe"

@@ -43,7 +43,7 @@ jobs:
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r4
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r5
         run: ./scripts/check-existing-release.ps1
 
       - name: Verify shared publisher action version and interface
@@ -64,7 +64,7 @@ jobs:
         timeout-minutes: 1
         run: ./tests/plugin-layout.ps1
 
-      - name: MSVC launcher preflight (before 214 MiB OBS download)
+      - name: MSVC launcher compile and link preflight (before OBS download)
         if: steps.existing.outputs.skip != 'true'
         timeout-minutes: 3
         run: ./scripts/preflight-launcher.ps1
@@ -118,8 +118,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r4
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r4)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r5
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r5)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -132,8 +132,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r4
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r4)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r5
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r5)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -143,7 +143,7 @@ jobs:
         if: steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r4
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r5
         run: |
           $release = gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json assets | ConvertFrom-Json
           $names=@($release.assets | ForEach-Object name)

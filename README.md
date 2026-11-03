@@ -1,9 +1,33 @@
-# OBS Studio PortableApps Builder — r4
+# OBS Studio PortableApps Builder — r5
 
 An independent, GitHub Actions-driven builder for **OBS Studio Windows x64**.
 No upstream fork, no manually downloaded binaries, no custom Git tokens and no Actions artifacts. Uses the official OBS binary distribution, compiled C++ launcher, OBS native portable mode, and your Universal Portable Release Publisher v1.1.1.
 
-> **Build status:** Project files and static tests are supplied, but this r4 has **not** been run on a Windows GitHub Actions runner at delivery time. Do not interpret an unexecuted workflow or an unbuilt PAF as a successful build. See [validation evidence](docs/VALIDATION.md).
+> **Build status:** Project files and static tests are supplied, but this r5 has **not** been run on a Windows GitHub Actions runner at delivery time. Do not interpret an unexecuted workflow or an unbuilt PAF as a successful build. See [validation evidence](docs/VALIDATION.md).
+
+## r5 fixes: missing Windows linker libraries and unsupported CI command
+
+The uploaded November 3, 2026 **r4** Windows Actions log shows that release
+resolution, publisher checks, module layout regression tests, early MSVC
+source compilation, and OBS 33.0.1 checksum verification/extraction **passed**.
+The native launcher compile then failed with **LNK2019** for `MessageBoxW` and
+`CommandLineToArgvW`, because their Win32 import libraries were not linked.
+
+r5 explicitly links **User32.lib** and **Shell32.lib** in both full MSVC build
+paths. Its early preflight now performs a **real compile + link + PE validation**
+(without the upstream OBS icon, which is applied later) before downloading
+223.8 MB of OBS binaries. This catches missing linker libraries and other
+link-time errors upfront instead of relying on the syntax-only `/Zs` test.
+
+Also, the official OBS documentation states that `--version`/`--help` are not
+available on Windows. r5 replaces CI's unsupported `--version` smoke check
+with native `--storage-selftest`, testing junction or copy-back storage,
+empty folders, Data persistence, relocation, and unrelated host-data protection
+without opening OBS's GUI. **Full OBS GUI startup still requires a manual
+interactive Windows test.**
+
+Neither native Windows compilation nor a full end-to-end r5 Actions build has
+been executed here. Preserve your previous working OBS builder until r5 passes.
 
 ## r4 fix: Windows SDK/MSVC launcher compilation
 
@@ -17,8 +41,8 @@ r4 replaces the WDK-only type with a small local mount-point buffer having
 compile-time checks of the Microsoft-documented 8-byte header and 16-byte
 path-buffer offset. It retains normal Win32 `DeviceIoControl` junction creation,
 without WDK, elevation or externally launched `mklink`. `scripts/preflight-launcher.ps1`
-now runs MSVC `/Zs` checking **before** the large OBS download, so this class
-of source-level error fails cheaply and clearly. Successful full compilation,
+used MSVC `/Zs` in r4; r5 upgrades it to full compile-and-link **before**
+the large OBS download, catching both source and linker errors early. Successful full compilation,
 Windows runtime tests, PAF generation and publication still await a live run.
 
 ## r3 fix: OBS 33 plugin folder detection
@@ -34,14 +58,14 @@ fixture before downloading the large OBS ZIP, and reports available top-level
 folders if the version-specific expectation fails. It does not alter or
 invent upstream modules, and it retains r2's verified release-check fix.
 
-**Live build status:** This is a source-based correction validated locally by
-static checks. The entire r4 GitHub Actions run, C++ compilation, launcher
-startup, and headless official PAF generation have not yet been tested.
+**Live build status:** r4 reached the linker, then failed. This r5 correction
+is statically checked here; its full Windows build, launcher runtime, and
+headless official PAF generation remain unverified.
 
 ## Outputs (created by GitHub Actions, not included in this builder kit)
 
-- `OBSStudioPortable_<upstream>_r4_win64.zip` — ready-to-extract PortableApps tree with `OBSStudioPortable.exe` at the root.
-- `OBSStudioPortable_<upstream>_r4_win64.paf.exe` — **only if** original, verified, unmodified PortableApps.com Installer v3.9.22 generates an authentic, validated installer in fully unattended mode.
+- `OBSStudioPortable_<upstream>_r5_win64.zip` — ready-to-extract PortableApps tree with `OBSStudioPortable.exe` at the root.
+- `OBSStudioPortable_<upstream>_r5_win64.paf.exe` — **only if** original, verified, unmodified PortableApps.com Installer v3.9.22 generates an authentic, validated installer in fully unattended mode.
 - `SHA256SUMS.txt` — generated and uploaded automatically by your Universal Portable Release Publisher v1.1.1 alongside the ZIP and any official PAF. The local build also writes `build/SHA256SUMS.txt`.
 
 **ZIP always comes first.** Official PAF is attempted by default. If the official tool cannot run headlessly, the workflow can publish a valid ZIP only. To fail instead, check **Require official PAF** on the workflow form. No generic NSIS program will be mislabeled official.
@@ -80,12 +104,12 @@ OBSStudioPortable/
 1. Open **GitHub Desktop**. Choose **File → New repository**.
 2. Name it **OBSStudio-PortableApps-Builder** and choose your local destination. This is **not** a fork of `obsproject/obs-studio`.
 3. Choose **Repository → Show in Explorer**.
-4. Extract the downloaded builder kit ZIP. Copy **the contents inside** the `OBSStudio-PortableApps-Builder-r4` folder into the new repository's top-level folder. Keep the hidden `.github` folder. Do not remove the `.git` folder GitHub Desktop created.
-5. In GitHub Desktop, check the changed files; enter the commit summary `OBS PortableApps Builder r4 - MSVC Reparse Fix` and click **Commit to main**.
+4. Extract the downloaded builder kit ZIP. Copy **the contents inside** the `OBSStudio-PortableApps-Builder-r5` folder into the new repository's top-level folder. Keep the hidden `.github` folder. Do not remove the `.git` folder GitHub Desktop created.
+5. In GitHub Desktop, check the changed files; enter the commit summary `OBS PortableApps Builder r5 - MSVC Link Fix` and click **Commit to main**.
 6. Click **Publish repository**. Choose the Public/Private checkbox based on your intended visibility; the workflow never changes it.
 7. Open your new repository in a browser. Select **Actions**. If prompted, select **Enable workflows**.
 8. Open **Build OBS Studio PortableApps (verified ZIP + optional official PAF)** → **Run workflow**. Keep **upstream_version = latest** and **require_official_paf = false** for the first run.
-9. Observe each job step. If it succeeds, open **Releases** in **your new builder repository**. The published release is called `portable-obs-v<upstream version>-r4`. Download the validated ZIP, and the official PAF if generated.
+9. Observe each job step. If it succeeds, open **Releases** in **your new builder repository**. The published release is called `portable-obs-v<upstream version>-r5`. Download the validated ZIP, and the official PAF if generated.
 10. A repeat run for an existing matching release is skipped before the large OBS download. For a new upstream version, manually run again. No schedules are configured.
 
 ## Install the portable app
@@ -109,7 +133,7 @@ OBSStudioPortable/
 
 ## Manual checks after first successful Actions release
 
-See [Windows acceptance checklist](docs/WINDOWS-ACCEPTANCE.md) and [troubleshooting](docs/TROUBLESHOOTING.md). The headless runner checks a real OBS `--version` execution but does not prove that full screen/video/audio capture or official PAF interactive installation works on your computer.
+See [Windows acceptance checklist](docs/WINDOWS-ACCEPTANCE.md) and [troubleshooting](docs/TROUBLESHOOTING.md). The headless runner tests the compiled launcher storage lifecycle without launching OBS GUI but does not prove that full screen/video/audio capture or official PAF interactive installation works on your computer.
 
 ## Licenses and limitations
 

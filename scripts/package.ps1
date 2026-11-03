@@ -6,7 +6,7 @@ $out=Join-Path $project 'output'
 Ensure-Directory $out
 $allStagedData=@(Get-ChildItem -LiteralPath "$stage/OBSStudioPortable/Data" -Recurse -Force -ErrorAction Stop)
 Assert ($allStagedData.Count -eq 0) 'CRITICAL: release staging contains runtime test data; refusing to package a user profile'
-$name="OBSStudioPortable_$($m.version)_r4_win64.zip"
+$name="OBSStudioPortable_$($m.version)_r5_win64.zip"
 $dest=Join-Path $out $name
 if(Test-Path $dest) { Remove-Item $dest -Force }
 # The staging parent is archived: ZIP contains OBSStudioPortable/ at root.

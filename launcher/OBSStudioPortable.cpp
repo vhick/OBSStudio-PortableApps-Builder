@@ -286,6 +286,47 @@ static int self_test_trace_guard(const Path& data, const Path& log) {
         throw std::runtime_error("TraceGuard file/empty-directory capture assertion failed");
     return 0;
 }
+// A headless Windows storage test that exercises the actual launcher junction
+// and verified copy-back code without attempting to open OBS's Qt GUI.
+// OBS's documented --version and --help commands are not available on Windows.
+static int self_test_portable_storage(const Path& link, const Path& saved, const Path& data) {
+    fs::create_directories(saved);
+    if (is_reparse(link)) {
+        if (!RemoveDirectoryW(link.c_str())) throw std::runtime_error("Cannot remove old test config junction");
+    }
+    const Path conflicts = data / L"RecoveryConflicts" / timestamp_suffix();
+    if (fs::is_directory(link)) {
+        safe_copy_tree(link, saved, conflicts);
+        fs::remove_all(link);
+    }
+    const bool junction = make_junction(link, saved);
+    if (!junction) {
+        fs::create_directories(link);
+        safe_copy_tree(saved, link, conflicts);
+    }
+    const Path relative = Path(L"obs-studio") / L"builder-storage-selftest.txt";
+    fs::create_directories(link / L"obs-studio" / L"builder-empty-tree" / L"deep");
+    {
+        std::ofstream output(link / relative, std::ios::binary | std::ios::trunc);
+        if (!output) throw std::runtime_error("Storage test could not create fixture");
+        output << "test portable config persistence\n";
+        if (!output) throw std::runtime_error("Storage test could not write fixture");
+    }
+    if (junction) {
+        if (!same_bytes(link / relative, saved / relative))
+            throw std::runtime_error("Storage test junction is not pointing to Data");
+        if (!RemoveDirectoryW(link.c_str()))
+            throw std::runtime_error("Storage test could not remove junction safely");
+    } else {
+        safe_copy_tree(link, saved, conflicts);
+        fs::remove_all(link);
+    }
+    if (fs::exists(link) || !fs::is_regular_file(saved / relative) ||
+        !fs::is_directory(saved / L"obs-studio" / L"builder-empty-tree" / L"deep"))
+        throw std::runtime_error("Storage test did not preserve files and empty directory tree in Data");
+    return 0;
+}
+
 static int launch(int argc,wchar_t** argv) {
     const Path root=executable_path().parent_path();
     const Path data=root/L"Data";
@@ -307,6 +348,8 @@ static int launch(int argc,wchar_t** argv) {
     try {
         if(argc>1 && std::wstring(argv[1])==L"--traceguard-selftest") {
             result=self_test_trace_guard(data,log);
+        } else if(argc>1 && std::wstring(argv[1])==L"--storage-selftest") {
+            result=self_test_portable_storage(link,saved,data);
         } else {
             if(!fs::is_regular_file(target)) throw std::runtime_error("OBS executable is missing");
             if(other_obs_running(target)) throw std::runtime_error("An OBS process is already running. Close OBS before portable startup to prevent profile conflicts");

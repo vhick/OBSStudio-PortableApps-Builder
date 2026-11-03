@@ -16,3 +16,8 @@
 - Technique reference only: https://github.com/vhick/FreeCrawl-PortableApps-Builder
 
 The upstream source code is unmodified; only the independent launcher/build scripts are compiled. Do not claim that the reference builder's past successful runs establish Windows compatibility here.
+
+- Microsoft `MessageBoxW` library: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw (`User32.lib`)
+- Microsoft `CommandLineToArgvW` library: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw (`Shell32.lib`)
+- Microsoft `/Zs` syntax-only limitation: https://learn.microsoft.com/en-us/cpp/build/reference/zs-syntax-check-only
+- Official OBS launch flags (Windows limitations for `--version` and `--help`): https://obsproject.com/kb/launch-parameters/

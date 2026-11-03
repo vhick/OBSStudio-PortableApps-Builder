@@ -4,3 +4,6 @@ output/
 *.paf.exe
 *.pdb
 __pycache__/
+*.obj
+*.res
+*.ilk

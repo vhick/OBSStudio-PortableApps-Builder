@@ -9,7 +9,7 @@ Verified audit reference version: 33.0.1 (2026-10-29). The build queries the lat
 - OBS uses C/C++, Qt 6, libobs, CMake, CEF for browser sources/docks, FFmpeg, Windows video/audio/capture APIs and bundled plugins.
 - Upstream supplies a ready-to-extract Windows x64 ZIP. The builder verifies this official binary ZIP against the SHA-256 digest published in the upstream GitHub release metadata, instead of rebuilding OBS's extensive toolchain. This is a deliberate practical exception to full source compilation. The native portable launcher **is compiled** using the Windows MSVC toolchain in Actions.
 - Official Windows supports Windows 10 and 11 with a compatible GPU and graphics runtime. VC++ Redistributable may be needed. A ZIP package is not an installer for drivers or redistributables.
-- The `--portable` switch is parsed in `frontend/obs-main.cpp`. Other recognized flags include `--disable-updater`, `--safe-mode`, `--version` and `--multi`. The portable launcher disallows `--multi` to prevent corruption.
+- The `--portable` switch is parsed in `frontend/obs-main.cpp`. Other flags include `--disable-updater`, `--safe-mode`, and `--multi`. OBS documents `--version` as unavailable on Windows, so the CI smoke test does not use it. The portable launcher disallows `--multi` to prevent corruption.
 - `GetAppConfigPath` in `frontend/OBSApp.cpp` switches to `CONFIG_PATH` during portable mode; OBS creates `obs-studio/basic`, `logs`, `profiler_data`, `crashes`, `updates`, `plugin_config`, profiles and scenes.
 - `frontend/utility/platform-windows.cpp` uses `data/obs-studio` for bundled assets and `CSIDL_MYVIDEO` for the default recording destination.
 

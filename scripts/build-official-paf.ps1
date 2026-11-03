@@ -42,7 +42,7 @@ try {
   $listing=Invoke-Bounded $seven @('l',"$found",'-slt') $work 90
   Assert ($listing -match 'OBSStudioPortable\.exe') 'Official PAF payload missing launcher'
   Assert ($listing -match 'obs64\.exe') 'Official PAF payload missing real OBS executable'
-  $final=Join-Path $out "OBSStudioPortable_$($m.version)_r4_win64.paf.exe"
+  $final=Join-Path $out "OBSStudioPortable_$($m.version)_r5_win64.paf.exe"
   if($found -ne $final) { Copy-Item -LiteralPath $found -Destination $final -Force }
   Assert ((Get-Sha $final) -eq (Get-Sha $found)) 'Official PAF copy verification failed'
   @{
