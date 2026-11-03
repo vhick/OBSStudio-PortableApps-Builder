@@ -101,9 +101,9 @@ jobs:
           REQUIRE_OFFICIAL_PAF: ${{ inputs.require_official_paf }}
         run: |
           if($env:REQUIRE_OFFICIAL_PAF -eq 'true') {
-            ./scripts/build-official-paf.ps1 -RequirePaf
+            ./scripts/build-official-paf-r5.ps1 -RequirePaf
           } else {
-            ./scripts/build-official-paf.ps1
+            ./scripts/build-official-paf-r5.ps1
           }
 
       - name: Final ZIP, PAF and metadata validation

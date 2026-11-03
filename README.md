@@ -1,30 +1,37 @@
-# OBS Studio PortableApps Builder — r6 PAF-only recovery
+# OBS Studio PortableApps Builder — r7 (official PAF CLI / compression diagnosis)
 
-**This revision adds a new, separate workflow that creates an official PortableApps `.paf.exe` from the already-successful OBS r5 ZIP. It does not re-download OBS upstream, recompile OBS, or recompile the native launcher.** The existing working r5 ZIP and its GitHub Release are preserved.
+**Use the dedicated PAF-only r7 workflow, not the original r5 full build.** This revision reuses the existing successful r5 release ZIP and never recompiles OBS, recompiles the launcher, or modifies the r5 release.
 
-## What to run (recommended)
+## What the latest real GitHub Actions failure proves
 
-1. In **GitHub Desktop**, open your existing independent `OBSStudio-PortableApps-Builder` repository and select **Repository → Show in Explorer**.
-2. Extract this ZIP and copy **everything inside** `OBSStudio-PortableApps-Builder-r6` into the repository, including `.github`, replacing matching files. **Do not overwrite or remove `.git`**.
-3. Commit `Add official PAF-only recovery workflow - r6`, then **Push origin**.
-4. On GitHub, open **Actions → Official OBS PAF from existing r5 ZIP (no OBS rebuild) → Run workflow**.
-5. Leave `source_release_tag` as `portable-obs-v33.0.1-r5` if that is the release containing your successful OBS ZIP. If your successful r5 release is another upstream version, change the input to that precise version's `portable-obs-vX.Y.Z-r5` tag.
-6. On success, open **Releases** and select `portable-obs-v33.0.1-r6` (or the matching upstream version). It should contain `OBSStudioPortable_33.0.1_r6_win64.paf.exe` plus `SHA256SUMS.txt`. Your **original r5 ZIP stays in the original r5 release**.
-7. Use **PortableApps Platform → Apps → Install a New App** and select the r6 `.paf.exe` file. Test this installer on a **separate test directory** first, then test upgrading an existing OBS portable folder after backing up its `Data` directory.
+The failed r6 PAF-only run on November 3, 2026 downloaded the existing **226 MiB** r5 ZIP, verified SHA-256, and restored the exact 2,305 application files. It also downloaded, verified, and extracted authentic PortableApps.com Installer **3.9.22**. The vendor packager executable did not exit before r6's 420-second deadline. This does **not** establish whether the program was still compressing or waiting for interactive input. No .paf.exe was published.
 
-**Do not run the old “Build OBS Studio PortableApps (verified ZIP + optional official PAF)” workflow when your goal is to test PAF-only.** That old workflow remains available as your r5 build baseline. The new r6 job downloads only your published r5 ZIP, its existing checksum file, and the official PortableApps packager.
+## r7 corrections
 
-## What's fixed and what is not yet verified
+1. A disposable small-package **official vendor CLI preflight** is performed before downloading the large OBS r5 ZIP. It does not launch/install the probe PAF and deletes it after testing. This can detect a non-headless packager *before* using 226 MiB network traffic.
+2. The PAF-only stage repairs the existing r5 **packaging metadata** (missing 75/256 icons, help.html and an obsolete installer option) while preserving the OBS/launcher bytes and original r5 Release. This targets documented Format 3.9 requirements and may prevent an interactive metadata warning.
+3. The real OBS PAF build uses the same **unmodified, checksum-pinned official tool**. Its maximum execution allowance is increased to 18 minutes only while the tool or its children show CPU or process-tree activity. An idle process is terminated after 180 seconds, without simulating GUI clicks or opening a PAF installer wizard.
+4. The packager reports process IDs, CPU use and visible window titles, and writes its stdout/stderr or failure reason to an internal log. Failed jobs stop before publication. This helps distinguish a stuck dialog from lengthy LZMA compression.
+5. The source ZIP and release SHA-256 continue to be verified; generated PAF payloads are checked against the original portable launcher and OBS executable. The r7 PAF will be published through `vhick/portable-release-publisher@v1.1.1` with automatic pruning disabled.
+6. The successful r5 release is left unchanged. r6 was unsuccessful; r7 uses a new tag to avoid collisions.
 
-- The r5 pipeline used optional installer generation, so a failed PAF attempt could still produce a successful ZIP-only workflow. **Without that successful run's installer log, the precise original PAF failure cannot be established.**
-- r6 makes PAF **mandatory**: it does not publish a misleading “success” unless the genuine packager produces a PE installer, 7-Zip validates and extracts the generated installer, and the embedded OBS and portable launcher executables match the verified r5 ZIP by SHA-256.
-- r6 checks source release and destination tag before downloading the large ZIP, checks both release asset names, downloads from your existing builder repository (using `GITHUB_TOKEN`), validates the original publisher's `SHA256SUMS.txt`, and does not reconstruct the app binaries.
-- r6 retains the pinned PortableApps.com Installer v3.9.22 and its published SourceForge SHA-256, but improves error reports, generated filename discovery, and output provenance. It does **not** relabel a generic NSIS build as official.
-- r6 publishes a **PAF-only r6 release** through `vhick/portable-release-publisher@v1.1.1`. This avoids recompressing and reuploading the existing large r5 ZIP. No workflow uses GitHub Actions build artifacts, pruning or third-party release publishers.
-- The package's embedded `appinfo.ini` remains the original verified **r5** metadata, because the r6 installer intentionally packages the unmodified r5 application staging content. The `r6` filename/tag refer to the *installer packaging revision*, not a new OBS or launcher version.
-- This kit has passed Linux-based static and YAML checks only. **Official Windows PAF compilation, GUI installation, upgrades, data persistence and release publishing have not been live-tested in this revision.** In case of a failure, the PAF-only run will halt and print the error rather than silently falling back to ZIP-only.
+**Important:** This is a targeted robustness and diagnosis fix, *not proof* that the official tool can create the large OBS PAF on the GitHub runner. If the vendor's compiler requires a GUI dialog despite valid metadata, r7 will fail clearly rather than manufacture an installer. No independently created NSIS installer is relabeled as official.
 
-See [PAF recovery details and troubleshooting](docs/PAF-RECOVERY-r6.md). The original r5 documentation follows below for reference.
+## Install the updated builder with GitHub Desktop
+
+1. Download and extract `OBSStudio-PortableApps-Builder-r7-OfficialPAF-MonitorFix.zip`.
+2. In GitHub Desktop, select your existing `OBSStudio-PortableApps-Builder` repository → **Repository → Show in Explorer**.
+3. Copy **everything inside the extracted r7 directory** into your existing builder repository, including the hidden `.github` directory. Replace the old files, but **do not touch `.git`**.
+4. Commit with `PAF-only official compiler probe and compression monitor - r7` and select **Push origin**.
+5. On GitHub, open **Actions → Official OBS PAF r7 from existing r5 ZIP (no OBS rebuild)**, then **Run workflow**.
+6. Leave `source_release_tag=portable-obs-v33.0.1-r5` (or the exact version-specific successful r5 release).
+7. Watch **Probe official packager CLI with a tiny disposable package**. If it fails, read its diagnostic log; do **not** rerun blindly. If it passes, the job downloads the existing r5 ZIP and compiles the real PAF.
+8. On success, download `OBSStudioPortable_33.0.1_r7_win64.paf.exe` and `SHA256SUMS.txt` from the new `portable-obs-v33.0.1-r7` Release. Your large r5 ZIP remains in the existing r5 Release.
+9. Before using the PAF for an upgrade, test it in a **separate** PortableApps folder: installation, launch, saving scenes/config, data preservation on reinstall, and moving the folder.
+
+**Safety:** Never install an untested PAF over production `Data`. The workflow does not publish any PAF unless real official compiler output passes PE, 7-Zip, original binary hash, appinfo and installer metadata checks. All Windows execution and installer creation are still pending for r7.
+
+See `docs/PAF-RECOVERY-r7.md` for the specific CI diagnostics and `docs/WINDOWS-ACCEPTANCE.md` for the user acceptance tests. The original r5 full-build workflow still invokes a frozen copy of its working PAF script (`scripts/build-official-paf-r5.ps1`); the new r7 PAF-only workflow uses separate monitored packaging logic.
 
 ---
 

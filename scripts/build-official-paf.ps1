@@ -1,6 +1,6 @@
 param(
   [switch]$RequirePaf,
-  [ValidateSet('r5','r6')][string]$PackageRevision='r5'
+  [ValidateSet('r5','r6','r7')][string]$PackageRevision='r5'
 )
 . "$PSScriptRoot/common.ps1"
 $project=(Resolve-Path "$PSScriptRoot/..").Path
@@ -10,45 +10,33 @@ $out=Join-Path $project 'output'
 Ensure-Directory $out
 Assert ($m.version -match '^\d+\.\d+\.\d+$') 'Invalid upstream release metadata'
 Assert (@(Get-ChildItem -LiteralPath "$stage/Data" -Force -Recurse -ErrorAction Stop).Count -eq 0) 'Data must be empty in release packaging stage'
-Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -match '(?m)^RemoveDataDirectory=false\s*$') 'Data upgrade protection is absent'
+if($PackageRevision -eq 'r7') {
+  Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -notmatch '(?mi)^RemoveDataDirectory\s*=') 'Obsolete Data removal key present.'
+} else {
+  Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -match '(?m)^RemoveDataDirectory=false\s*$') 'Original r5 Data upgrade protection is absent'
+}
 Test-Pe "$stage/OBSStudioPortable.exe"
 Test-Pe "$stage/App/OBSStudio/bin/64bit/obs64.exe"
 
-# Authentic, unmodified PortableApps.com Installer; checksum published by SourceForge.
+# The same vendor distribution was tested on a tiny package before downloading
+# the large OBS ZIP. Reuse it; do not extract or execute a PAF setup wizard.
+. "$PSScriptRoot/official-paf-tool.ps1"
+. "$PSScriptRoot/invoke-official-packager.ps1"
 $version='3.9.22'
 $expected='689456f1fb1320c45e82a077afe6b87fb388fd3f75c41d9ee9ce8d45f3966b67'
-$url='https://downloads.sourceforge.net/project/portableapps/PortableApps.com%20Installer/PortableApps.comInstaller_3.9.22.paf.exe'
 $work=Join-Path $project 'build/official-installer'
-$source=Join-Path $work 'PortableApps.comInstaller_3.9.22.paf.exe'
-$extract=Join-Path $work 'unpacked'
+$source=Join-Path $work "PortableApps.comInstaller_${version}.paf.exe"
 $verify=Join-Path $work 'verified-payload'
 Ensure-Directory $work
 try {
   $seven=Find-SevenZip
-  if(-not (Test-Path -LiteralPath $source) -or (Get-Sha $source) -ne $expected) {
-    Save-VerifiedDownload $url $source $expected
-  }
-  Assert ((Get-Sha $source) -ceq $expected) 'Official installer source digest mismatch.'
-  Test-Pe $source
-  Invoke-Bounded $seven @('t',$source) $work 90 | Out-Null
-  if(Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-  Ensure-Directory $extract
-  Invoke-Bounded $seven @('x',$source,"-o$extract",'-y') $extract 90 | Out-Null
-  $tools=@(Get-ChildItem -LiteralPath $extract -File -Recurse | Where-Object { $_.Name -ieq 'PortableApps.comInstaller.exe' })
-  if($tools.Count -ne 1) {
-    $executables=@(Get-ChildItem -LiteralPath $extract -File -Recurse -Filter '*.exe' | Select-Object -ExpandProperty FullName)
-    Write-Host "Vendor archive executables discovered: $($executables -join '; ')"
-    throw "Expected ONE original PortableApps.comInstaller.exe in extracted verified distribution; found $($tools.Count). Not running an install wizard."
-  }
-  $tool=$tools[0].FullName
-  Test-Pe $tool
+  $tool=Get-OfficialPafTool
   Write-Host "Official packager: $tool"
   Write-Host "Stage: $stage"
-  # The official packager's documented CLI takes the PortableApps application's
-  # main directory as its positional argument. Never execute the PAF's setup GUI.
   $begun=[DateTime]::UtcNow.AddSeconds(-15)
-  $log=Invoke-Bounded $tool @($stage) $work 420
-  $log | Set-Content -LiteralPath "$work/official-run.log" -Encoding utf8
+  $maxSeconds=if($PackageRevision -eq 'r7') { 1080 } else { 420 }
+  $idleSeconds=if($PackageRevision -eq 'r7') { 180 } else { 110 }
+  Invoke-OfficialPackager -Exe $tool -Stage $stage -Work $work -LogFile "$work/official-run.log" -MaxSeconds $maxSeconds -IdleSeconds $idleSeconds
 
   # The packager chooses its own name and output directory. Search controlled
   # locations and validate the CONTENT rather than guessing a filename.
@@ -90,7 +78,13 @@ try {
   $installerInfos=@(Get-ChildItem -LiteralPath $verify -File -Recurse | Where-Object { $_.Name -ceq 'installer.ini' })
   if($installerInfos.Count -gt 0) {
     Assert ($installerInfos.Count -eq 1) 'Ambiguous installer.ini entries inside the PAF'
-    Assert ((Get-Content -Raw -LiteralPath $installerInfos[0].FullName) -match '(?m)^RemoveDataDirectory=false\s*$') 'PAF installer.ini does not protect Data'
+    $instText=Get-Content -Raw -LiteralPath $installerInfos[0].FullName
+    if($PackageRevision -eq 'r7') {
+      Assert ($instText -notmatch '(?mi)^RemoveDataDirectory\s*=') 'PAF unexpectedly contains the obsolete Data setting'
+      Assert ($instText -match '(?m)^RemoveAppDirectory=true\s*$') 'PAF is missing the expected upgrade App behavior'
+    } else {
+      Assert ($instText -match '(?m)^RemoveDataDirectory=false\s*$') 'PAF installer.ini is missing the original r5 setting'
+    }
   }
   $final=Join-Path $out "OBSStudioPortable_$($m.version)_${PackageRevision}_win64.paf.exe"
   Assert (-not (Test-Path -LiteralPath $final)) "Refusing to overwrite an existing installer: $final"
