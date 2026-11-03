@@ -39,6 +39,10 @@ jobs:
         timeout-minutes: 2
         run: python ./tests/paf-only-static.py
 
+      - name: Verify release-tag validation on Windows before API checks
+        timeout-minutes: 1
+        run: ./scripts/check-existing-release.ps1 -ValidateTagsOnly
+
       - name: Check r8 source release and locate existing verified ZIP
         id: source
         timeout-minutes: 2

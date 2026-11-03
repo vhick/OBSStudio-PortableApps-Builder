@@ -1,6 +1,17 @@
-# OBS Studio PortableApps Builder r8 — ProgramData Game Capture Hook Recovery
+# OBS Studio PortableApps Builder r8.2 — PAF Release-Tag Validation Fix
 
-This is an independent GitHub Actions builder for the official OBS Studio Windows x64 ZIP. **The user confirmed that the r8 ZIP workflow succeeded.** The first r8 PAF-only attempt stopped during Python validation due to missing PyYAML. This r8.1 kit fixes that preflight dependency without touching the confirmed working r8 OBS launcher or ZIP workflow. Retain the r7 releases as a backup until the revised PAF is installed and tested.
+This is an independent GitHub Actions builder for official OBS Studio Windows x64 packages. The **r8 ZIP workflow already succeeded** and is unchanged. The r8 PAF-only workflow was first blocked by a missing YAML parser (corrected in r8.1), and the next run stopped at `Unexpected release tag`. This r8.2 revision fixes the exact release-tag validation error without downloading or recompiling OBS.
+
+**Use the PAF-only workflow with your existing `portable-obs-v33.0.1-r8` ZIP release.** The new PAF release target stays `portable-obs-v33.0.1-r8-paf`, since the failed run did not reach publishing. Retain the working r7/r8 release assets.
+
+## What r8.2 fixes (PAF-only)
+
+- The release-check script accepted only `portable-obs-v<version>-r<number>` tags. It now accepts that format **and** `portable-obs-v<version>-r<number>-paf` while rejecting extra suffixes, slashes and other unsafe patterns.
+- The same release checker protects against an existing release or an orphaned Git tag; it still **does not overwrite existing tags**.
+- A no-network PowerShell self-test runs on Windows **before** the release lookup, so this validation mistake will be caught quickly on future runs.
+- The existing Python regression test now checks the script's real tag pattern and both ZIP and PAF tag cases.
+- The PAF-only workflow continues to reuse the original r8 ZIP, with the r8 launcher and `%PROGRAMDATA%\obs-studio-hook` protection intact. The ZIP workflow, installer logic, source checksums and Universal Release Publisher v1.1.1 are unchanged.
+
 
 ## What r8.1 fixes (PAF-only)
 
@@ -56,13 +67,13 @@ The official PAF can only be claimed when the vendor tool compiles it and the pa
 ## GitHub Desktop update: step by step
 
 1. **Keep the successful r7 release and a backup of `OBSStudioPortable\Data`.** Close OBS and any running games before upgrading.
-2. Download this r8.1 builder kit and extract it.
+2. Download this r8.2 builder kit and extract it.
 3. Open the existing independent `OBSStudio-PortableApps-Builder` repository in GitHub Desktop.
 4. Select **Repository → Show in Explorer**.
-5. Copy everything **inside** the extracted `OBSStudio-PortableApps-Builder-r8.1` folder into the repository root, including `.github`. Replace matching files; **never remove `.git`**.
+5. Copy everything **inside** the extracted `OBSStudio-PortableApps-Builder-r8.2` folder into the repository root, including `.github`. Replace matching files; **never remove `.git`**.
 6. The PAF workflow keeps its existing filename `.github/workflows/official-paf-from-r5.yml` solely so the new r8 contents **overwrite** the old r7 workflow during this copy. Its visible name is now the r8 workflow. If you previously manually created any other PAF workflow files, disable or delete obsolete duplicates.
 7. Files `scripts/restore-r5-stage.ps1` and `scripts/build-official-paf-r5.ps1` from older kits, if present, are not referenced by either r8 workflow. They can be deleted after you confirm the changes, but they do not prevent an r8 build.
-8. Return to GitHub Desktop and commit `Fix missing PyYAML in r8 PAF workflow`. Click **Push origin**.
+8. Return to GitHub Desktop and commit `Accept r8-paf release tags - r8.2`. Click **Push origin**.
 9. **Do not run the ZIP workflow again:** your r8 ZIP already exists and the successful application files are unchanged.
 10. On GitHub choose **Actions → Official OBS PAF r8 from existing r8 ZIP (no OBS rebuild)** and use `source_release_tag=portable-obs-v33.0.1-r8` (or the exact tag of your successful ZIP release).
 11. Download the ZIP and PAF from their corresponding **Releases**. Test both in a **separate** PortableApps folder before upgrading your working installation.

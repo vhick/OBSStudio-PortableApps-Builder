@@ -1,10 +1,36 @@
-# Uses the GitHub REST API rather than `gh release view`, which returns exit code 1
-# for an expected missing release and can terminate pwsh steps prematurely.
-# Distinguishes an unused tag from an existing release or an orphaned tag.
+# Uses GitHub's release-by-tag and git-ref REST endpoints.
+# A missing release (HTTP 404) is expected for a first publication.
+# Only accept ZIP release tags (r8) and their separate PAF tags (r8-paf).
+param([switch]$ValidateTagsOnly)
 . "$PSScriptRoot/common.ps1"
+$releaseTagPattern = '^portable-obs-v\d+\.\d+\.\d+-r[1-9]\d*(?:-paf)?$'
+
+# Cheap self-test performed on the actual Windows runner before release lookup.
+# No network, OBS download, compilation or publishing in this mode.
+if ($ValidateTagsOnly) {
+  foreach ($valid in @(
+    'portable-obs-v33.0.1-r8',
+    'portable-obs-v33.0.1-r8-paf',
+    'portable-obs-v34.1.0-r12',
+    'portable-obs-v34.1.0-r12-paf'
+  )) {
+    Assert ($valid -cmatch $releaseTagPattern) "Valid release tag was rejected: $valid"
+  }
+  foreach ($invalid in @(
+    '', 'portable-obs-v33.0.1-r8-paf-extra',
+    'portable-obs-v33.0.1-r0', 'portable-obs-v33.0.1-r8.zip',
+    'portable-obs-v33.0.1-r8-paf/other', 'portable-obs-v33.0.1-r8-PAF',
+    'portable-obs-v33.0.1-r8-zip', 'other-repo-v33.0.1-r8-paf'
+  )) {
+    Assert (-not ($invalid -cmatch $releaseTagPattern)) "Unsafe release tag accepted: $invalid"
+  }
+  Write-Host 'Windows release-tag validation passed for both ZIP and PAF tags.'
+  exit 0
+}
+
 Assert (-not [string]::IsNullOrWhiteSpace($env:GITHUB_REPOSITORY)) 'GITHUB_REPOSITORY is missing'
 Assert ($env:GITHUB_REPOSITORY -match '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') 'Unexpected repository name'
-Assert ($env:RELEASE_TAG -match '^portable-obs-v\d+\.\d+\.\d+-r\d+$') 'Unexpected release tag'
+Assert ($env:RELEASE_TAG -cmatch $releaseTagPattern) 'Unexpected release tag'
 Assert (-not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)) 'Missing GITHUB_TOKEN for release preflight'
 Assert (-not [string]::IsNullOrWhiteSpace($env:GITHUB_OUTPUT)) 'GITHUB_OUTPUT is missing'
 

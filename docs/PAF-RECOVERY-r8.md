@@ -9,3 +9,16 @@ The project keeps `.github/workflows/official-paf-from-r5.yml` as the filename f
 ## r8.1: Python validation dependency fix (November 3, 2026)
 
 The uploaded r8 PAF-only Actions logs show the checkout succeeded but `python ./tests/paf-only-static.py` failed immediately with `ModuleNotFoundError: No module named 'yaml'`. The workflow now installs the published PyYAML 6.0.3 wheel, verifies the imported package version, and only then runs the YAML/static validations. It makes no changes to OBS application files, compiled launcher, staging, existing source ZIP, official installer, PAF filenames, or release publisher. Run this updated PAF-only workflow again using the **existing r8 ZIP release**, not a new full build. The PAF installer still requires a successful live Windows run.
+
+## r8.2: PAF release-tag acceptance fix (November 3, 2026)
+
+The r8.1 PAF-only run successfully installed PyYAML, passed the static checks,
+resolved the source r8 ZIP asset and stopped at `Check target r8-paf tag` with
+`Unexpected release tag`. The shared release checker incorrectly permitted only
+`portable-obs-v<version>-r<number>` and rejected the distinct valid PAF tag
+`portable-obs-v<version>-r<number>-paf`. r8.2 fixes the anchored pattern, adds a
+native PowerShell no-network self-test before API calls, and updates Python
+static checks to test both legitimate formats and invalid suffixes.
+
+The PAF tag remains `portable-obs-v33.0.1-r8-paf`; no new OBS ZIP is needed.
+No Windows packaging success is claimed until Actions finishes the PAF run.

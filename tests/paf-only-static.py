@@ -30,6 +30,26 @@ assert "package_revision -ceq 'r8'" in restore
 assert 'SHA256 mismatch' in restore
 assert 'Get-Sha' in restore and 'Test-Pe' in restore
 assert 'No OBS download' in source
+# Regression for Nov 3, 2026 r8.1 failure: the shared release checker formerly
+# rejected the PAF-only release tag because it only permitted a trailing -rN.
+# Extract the ACTUAL script pattern, not a duplicated hard-coded replacement.
+import re
+release_check = (root/'scripts/check-existing-release.ps1').read_text()
+m = re.search(r"\$releaseTagPattern\s*=\s*'([^']+)'", release_check)
+assert m, 'Release-check validation pattern not found'
+tag_pattern = re.compile(m.group(1))
+for tag in ('portable-obs-v33.0.1-r8', 'portable-obs-v33.0.1-r8-paf',
+            'portable-obs-v34.1.0-r12', 'portable-obs-v34.1.0-r12-paf'):
+    assert tag_pattern.fullmatch(tag), f'Valid release tag rejected: {tag}'
+for tag in ('', 'portable-obs-v33.0.1-r8-paf-extra',
+            'portable-obs-v33.0.1-r8.zip', 'portable-obs-v33.0.1-r8-zip',
+            'portable-obs-v33.0.1-r0', 'portable-obs-v33.0.1-r8-PAF',
+            'portable-obs-v33.0.1-r8-paf/other'):
+    assert not tag_pattern.fullmatch(tag), f'Unsafe release tag accepted: {tag}'
+assert 'Assert ($env:RELEASE_TAG -cmatch $releaseTagPattern)' in release_check
+assert 'if ($ValidateTagsOnly)' in release_check
+assert 'check-existing-release.ps1 -ValidateTagsOnly' in s
+assert s.index('check-existing-release.ps1 -ValidateTagsOnly') < s.index('resolve-paf-source.ps1')
 pack=(root/'scripts/build-official-paf.ps1').read_text()
 assert 'original-unmodified-PortableApps.comInstaller' in pack
 assert 'Get-OfficialPafTool' in pack
@@ -38,4 +58,4 @@ assert 'official-run.log' in pack
 assert 'verified-payload' in pack
 assert 'original r5' not in pack
 assert 'r8_win64.paf.exe' in (root/'scripts/validate-paf-only.ps1').read_text()
-print('r8 PAF-only static checks passed (must use actual r8 ZIP, separate r8-paf tag).')
+print('r8.2 PAF-only static checks passed (r8 ZIP reuse, r8-paf release, release-tag regression).')
