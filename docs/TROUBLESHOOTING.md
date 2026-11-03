@@ -1,6 +1,8 @@
 # Troubleshooting
 
-**Release check fails at HTTP status:** The r2 workflow uses a token-authenticated GitHub REST API request. A missing release returns 404 (expected) and an existing release returns 200 (skip). Unexpected statuses fail rather than skipping incorrectly. If a Git tag exists without a release, revision must change to avoid overwriting it. Do not fall back to `gh release view` with a naive error catch.
+**OBS extraction fails with “Missing OBS plugin directory”:** This was fixed in r3 by version-aware `core` (OBS 33+) and `obs-plugins` (OBS <=32) checks. It does not create fake directories. If a newer upstream changes the layout again, inspect the upstream structure and update the verifier.
+
+**Release check fails at HTTP status:** The r3 workflow uses a token-authenticated GitHub REST API request. A missing release returns 404 (expected) and an existing release returns 200 (skip). Unexpected statuses fail rather than skipping incorrectly. If a Git tag exists without a release, revision must change to avoid overwriting it. Do not fall back to `gh release view` with a naive error catch.
 
 **Workflow missing in Actions:** Commit `.github/workflows/build-portableapps.yml` into the repository default branch. Refresh GitHub's Actions page and enable workflows if asked.
 
@@ -18,4 +20,4 @@
 
 **Another OBS instance running:** Exit all instances and try again. This is a protection against profile conflicts, not a launcher failure.
 
-**Publisher refuses release:** The intended tag is `portable-obs-v<OBS-version>-r2`, the repo must allow `contents: write`, and the release must not already exist. v1.1.1's `prune` is disabled, so nothing is automatically deleted.
+**Publisher refuses release:** The intended tag is `portable-obs-v<OBS-version>-r3`, the repo must allow `contents: write`, and the release must not already exist. v1.1.1's `prune` is disabled, so nothing is automatically deleted.

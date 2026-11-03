@@ -51,7 +51,7 @@ CommercialUse=true
 
 [Version]
 PackageVersion=$($m.version).1
-DisplayVersion=$($m.version) Portable Builder r2
+DisplayVersion=$($m.version) Portable Builder r3
 
 [Control]
 Icons=1
@@ -115,6 +115,6 @@ try {
   }
 } finally { $icon.Dispose() }
 # No Data defaults are seeded into existing installations.
-$metadata=[ordered]@{upstream=$m;launcher='Compiled OBSStudioPortable.exe';portable_storage='Data/OBSConfig';package_revision='r2'}
+$metadata=[ordered]@{upstream=$m;launcher='Compiled OBSStudioPortable.exe';portable_storage='Data/OBSConfig';package_revision='r3'}
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$stage/Other/Source/BUILD-METADATA.json" -Encoding utf8
 Write-Host "Staged OBS $($m.version) at $stage"

@@ -43,7 +43,7 @@ jobs:
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r2
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r3
         run: ./scripts/check-existing-release.ps1
 
       - name: Verify shared publisher action version and interface
@@ -58,6 +58,11 @@ jobs:
           }
           if($content -notmatch 'Publish portable ZIPs and PortableApps') { throw 'Unexpected publisher action' }
           Write-Host 'Publisher interface confirmed for v1.1.1.'
+
+      - name: Regression-test OBS 32 and OBS 33+ module directories
+        if: steps.existing.outputs.skip != 'true'
+        timeout-minutes: 1
+        run: ./tests/plugin-layout.ps1
 
       - name: Retrieve and verify official OBS x64 portable ZIP
         if: steps.existing.outputs.skip != 'true'
@@ -108,8 +113,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r2
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r2)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r3
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r3)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -122,8 +127,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r2
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r2)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r3
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r3)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -133,7 +138,7 @@ jobs:
         if: steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r2
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r3
         run: |
           $release = gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json assets | ConvertFrom-Json
           $names=@($release.assets | ForEach-Object name)

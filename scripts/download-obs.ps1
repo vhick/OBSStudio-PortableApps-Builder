@@ -15,8 +15,8 @@ Invoke-Bounded $seven @('x',"$zip","-o$target",'-y') $target 240 | Out-Null
 $obs=@(Get-ChildItem $target -Filter obs64.exe -File -Recurse | Where-Object { $_.FullName -match '[\\/]bin[\\/]64bit[\\/]obs64\.exe$' })
 Assert ($obs.Count -eq 1) "Upstream ZIP must contain exactly one bin\64bit\obs64.exe, found $($obs.Count)"
 $root=$obs[0].Directory.Parent.Parent.FullName
-Assert (Test-Path (Join-Path $root 'data/obs-studio')) 'Missing OBS application data directory'
-Assert (Test-Path (Join-Path $root 'obs-plugins')) 'Missing OBS plugin directory'
+. "$PSScriptRoot/verify-obs-layout.ps1"
+Assert-ObsLayout -Root $root -Version $m.version
 Test-Pe $obs[0].FullName
 @{ root=$root; executable=$obs[0].FullName } | ConvertTo-Json | Set-Content "$PSScriptRoot/../build/upstream.json" -Encoding utf8
 Write-Host "Verified OBS binaries at $root"

@@ -47,3 +47,13 @@ The exact list of host-trace locations for arbitrary third-party plugins is not 
 - OBS GPLv2+ license: https://github.com/obsproject/obs-studio/blob/33.0.1/COPYING
 - Official PortableApps Installer 3.9.22 SHA-256: https://sourceforge.net/projects/portableapps/files/PortableApps.com%20Installer/PortableApps.comInstaller_3.9.22.paf.exe/download
 - PortableApps installer.ini: https://github.com/PortableApps/Launcher/blob/master/Other/Source/Manual/ref/paf/installer.rst
+
+## OBS Studio 33 plugin-layout update (2026-09-21)
+
+OBS's official [Legacy Plugin Locations](https://obsproject.com/kb/legacy-plugin-locations)
+notes document the move of first-party modules into `core` starting with 33.0.
+Portable third-party plugins have a separate new `plugins` location; old
+`obs-plugins` is supported as legacy until OBS 34. Never require the legacy
+folder in a clean OBS 33 ZIP. The builder validates built-in module DLLs in
+`core` for OBS 33+ and in `obs-plugins` for OBS 32 and earlier, preserving the
+upstream directory layout unchanged.

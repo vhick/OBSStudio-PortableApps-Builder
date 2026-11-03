@@ -11,7 +11,7 @@ Assert (-not [string]::IsNullOrWhiteSpace($env:GITHUB_OUTPUT)) 'GITHUB_OUTPUT is
 $headers = @{
   'Accept' = 'application/vnd.github+json'
   'Authorization' = "Bearer $env:GH_TOKEN"
-  'User-Agent' = 'OBSStudioPortableBuilder/release-check-r2'
+  'User-Agent' = 'OBSStudioPortableBuilder/release-check-r3'
 }
 $api = 'https://api.github.com/repos/' + $env:GITHUB_REPOSITORY
 $escapedTag = [uri]::EscapeDataString($env:RELEASE_TAG)

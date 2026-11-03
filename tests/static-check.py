@@ -7,7 +7,8 @@ files = [
     'README.md', '.github/workflows/build-portableapps.yml', 'launcher/OBSStudioPortable.cpp',
     'scripts/resolve.ps1', 'scripts/check-existing-release.ps1', 'scripts/download-obs.ps1', 'scripts/compile-launcher.ps1',
     'scripts/stage.ps1', 'scripts/build-official-paf.ps1', 'scripts/check-packages.ps1',
-    'scripts/package.ps1', 'tests/windows-smoke.ps1', 'docs/SOURCE-AUDIT.md'
+    'scripts/package.ps1', 'tests/windows-smoke.ps1', 'tests/plugin-layout.ps1',
+    'scripts/verify-obs-layout.ps1', 'docs/SOURCE-AUDIT.md'
 ]
 for name in files:
     f = root / name
@@ -51,7 +52,7 @@ assert 'totally-empty' in smoke and 'empty-tree/deep/leaf' in smoke
 print(f'Static preflight passed: {len(files)} files, action inputs, launcher safety patterns, test isolation.')
 
 # Regression: failed r1 step 4 used `gh release view` and returned exit code 1
-# for a missing release. The r2 preflight uses explicit REST status comparisons.
+# for a missing release. The r3 preflight uses explicit REST status comparisons.
 preflight = (root / 'scripts/check-existing-release.ps1').read_text()
 assert 'Invoke-WebRequest' in preflight and '-SkipHttpErrorCheck' in preflight
 assert '200 {' in preflight and '404 {' in preflight
@@ -60,5 +61,19 @@ assert 'skip=false' in preflight and 'skip=true' in preflight
 release_check_step = yml.split('      - name: Check existing release and tag (HTTP 200/404 safe)', 1)[1].split('      - name:', 1)[0]
 assert 'gh release view' not in release_check_step
 assert 'scripts/check-existing-release.ps1' in yml
-assert '-r2' in yml and '-r1' not in yml
-print('r2 static guard passed: REST 200/404 branches and tag-collision safeguards are present (not live-tested).')
+assert '-r3' in yml and '-r1' not in yml
+print('r3 release-check guard passed: REST 200/404 branches and tag-collision safeguards are present (not live-tested).')
+
+# Regression for OBS Studio 33's migration from obs-plugins to core modules.
+layout = (root / 'scripts/verify-obs-layout.ps1').read_text()
+assert "$major -ge 33" in layout
+assert "$relative='core'" in layout
+assert "$relative='obs-plugins'" in layout
+assert "'*.dll'" in layout
+assert 'Assert-ObsLayout -Root $root -Version $m.version' in (root / 'scripts/download-obs.ps1').read_text()
+fixtures = (root / 'tests/plugin-layout.ps1').read_text()
+for expected in ("Version '32.2.0'", "Version '33.0.1'", 'rejectedModern', 'rejectedEmpty'):
+    assert expected in fixtures, f'Missing new/legacy plugin layout fixture: {expected}'
+assert 'run: ./tests/plugin-layout.ps1' in yml
+assert "package_revision='r3'" in stage
+print('r3 OBS plugin-layout guard passed: modern/legacy verification and Windows fixture are wired in (not executed here).')
