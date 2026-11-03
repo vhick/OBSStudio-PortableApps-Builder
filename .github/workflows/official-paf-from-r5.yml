@@ -29,7 +29,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install pinned YAML parser for PAF-only regression checks
+        timeout-minutes: 2
+        run: |
+          python -m pip install --disable-pip-version-check --no-input --only-binary=:all: "PyYAML==6.0.3"
+          python -c "import yaml; assert yaml.__version__ == '6.0.3'; print('PyYAML 6.0.3 ready')"
+
       - name: Run PAF-only static regression checks
+        timeout-minutes: 2
         run: python ./tests/paf-only-static.py
 
       - name: Check r8 source release and locate existing verified ZIP

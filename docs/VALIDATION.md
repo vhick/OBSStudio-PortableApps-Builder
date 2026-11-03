@@ -57,3 +57,7 @@ The user confirmed the r7 two-workflow design builds both ZIP and official PAF o
 **Not verified in this environment:** Windows MSVC compilation of the changed launcher, actual OBS Game Capture, Windows process-lock handling, real ProgramData permissions, vendor PAF generation from the new r8 ZIP, live release publishing, and manual install/upgrade acceptance. The `--programdata-hook-selftest` fixture is designed to run in the Windows full-build job, not this container.
 
 **Safety exception:** A pre-existing `%PROGRAMDATA%\obs-studio-hook` is intentionally left alone; a failed/locked cleanup can also leave it in place. This does not mean the launcher can guarantee zero ProgramData traces under all circumstances.
+
+## Uploaded r8 PAF-only error and r8.1 fix
+
+The November 3, 2026 log `logs_112681126319.zip` reports step 3 failure: `ModuleNotFoundError: No module named 'yaml'` in `tests/paf-only-static.py`. The installer was not invoked. r8.1 adds a pinned PyYAML installation to that workflow **before** Python static checks; it also asserts correct ordering. Local parsing and static checks are executable in the builder-creation container. The revised PAF job and genuine PAF output have NOT yet been tested on a Windows runner.

@@ -5,6 +5,11 @@ root=Path(__file__).resolve().parents[1]
 p=root/'.github/workflows/official-paf-from-r5.yml'
 s=p.read_text()
 yaml.safe_load(s)
+# A clean GitHub-hosted Windows runner does not guarantee third-party PyYAML.
+# Install it before executing this test; do not add the dependency to the OBS build.
+assert 'PyYAML==6.0.3' in s, 'Missing pinned PyYAML installation'
+assert s.index('PyYAML==6.0.3') < s.index('run: python ./tests/paf-only-static.py'), 'Dependency installed too late'
+assert '--only-binary=:all:' in s, 'Prefer a prebuilt wheel on the Windows runner'
 assert s.count('vhick/portable-release-publisher@v1.1.1')==2
 assert 'portable-obs-v${{ steps.source.outputs.version }}-r8-paf' in s
 assert 'RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r8\n' not in s

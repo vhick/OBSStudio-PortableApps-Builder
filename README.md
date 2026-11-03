@@ -1,6 +1,13 @@
 # OBS Studio PortableApps Builder r8 — ProgramData Game Capture Hook Recovery
 
-This is an independent GitHub Actions builder for the official OBS Studio Windows x64 ZIP. **r7 is the last user-confirmed successful ZIP + official PAF builder. r8 is a new, unverified Windows revision.** Do not delete your r7 releases until r8 passes a real Windows build and your Game Capture tests.
+This is an independent GitHub Actions builder for the official OBS Studio Windows x64 ZIP. **The user confirmed that the r8 ZIP workflow succeeded.** The first r8 PAF-only attempt stopped during Python validation due to missing PyYAML. This r8.1 kit fixes that preflight dependency without touching the confirmed working r8 OBS launcher or ZIP workflow. Retain the r7 releases as a backup until the revised PAF is installed and tested.
+
+## What r8.1 fixes (PAF-only)
+
+- The uploaded November 3, 2026 PAF-only Actions log stopped at `Run PAF-only static regression checks` with `ModuleNotFoundError: No module named 'yaml'` on a clean `windows-2022` runner.
+- The PAF-only workflow now installs **PyYAML 6.0.3** from a binary wheel and confirms its import **before** running `tests/paf-only-static.py`. The test also checks this prerequisite is present and correctly ordered.
+- Everything else is unchanged: the successful r8 ZIP workflow, OBS binaries, launcher with ProgramData hook capture, original r8 ZIP release tag, separate `r8-paf` release tag, official packager and release publisher.
+- The PAF-only workflow downloads the already published r8 ZIP only **after** cheap tests and preflight; it does **not** recompile OBS or the launcher. Since the PAF run failed before publishing, reusing the intended `r8-paf` tag is appropriate; if that tag now exists, the workflow's existing release check will protect it.
 
 ## What changed in r8
 
@@ -49,15 +56,15 @@ The official PAF can only be claimed when the vendor tool compiles it and the pa
 ## GitHub Desktop update: step by step
 
 1. **Keep the successful r7 release and a backup of `OBSStudioPortable\Data`.** Close OBS and any running games before upgrading.
-2. Download this r8 builder kit and extract it.
+2. Download this r8.1 builder kit and extract it.
 3. Open the existing independent `OBSStudio-PortableApps-Builder` repository in GitHub Desktop.
 4. Select **Repository → Show in Explorer**.
-5. Copy everything **inside** the extracted `OBSStudio-PortableApps-Builder-r8` folder into the repository root, including `.github`. Replace matching files; **never remove `.git`**.
+5. Copy everything **inside** the extracted `OBSStudio-PortableApps-Builder-r8.1` folder into the repository root, including `.github`. Replace matching files; **never remove `.git`**.
 6. The PAF workflow keeps its existing filename `.github/workflows/official-paf-from-r5.yml` solely so the new r8 contents **overwrite** the old r7 workflow during this copy. Its visible name is now the r8 workflow. If you previously manually created any other PAF workflow files, disable or delete obsolete duplicates.
 7. Files `scripts/restore-r5-stage.ps1` and `scripts/build-official-paf-r5.ps1` from older kits, if present, are not referenced by either r8 workflow. They can be deleted after you confirm the changes, but they do not prevent an r8 build.
-8. Return to GitHub Desktop and commit `Add safe ProgramData hook recovery - r8`. Click **Push origin**.
-9. On GitHub, select **Actions**, run the r8 ZIP workflow with default settings, and check the Windows storage/hook self-tests.
-10. Only when the r8 ZIP release succeeds, run the r8 PAF-only workflow, pointing it at that exact r8 ZIP release tag.
+8. Return to GitHub Desktop and commit `Fix missing PyYAML in r8 PAF workflow`. Click **Push origin**.
+9. **Do not run the ZIP workflow again:** your r8 ZIP already exists and the successful application files are unchanged.
+10. On GitHub choose **Actions → Official OBS PAF r8 from existing r8 ZIP (no OBS rebuild)** and use `source_release_tag=portable-obs-v33.0.1-r8` (or the exact tag of your successful ZIP release).
 11. Download the ZIP and PAF from their corresponding **Releases**. Test both in a **separate** PortableApps folder before upgrading your working installation.
 
 ## Install the resulting packages
@@ -78,7 +85,7 @@ If a game's hook DLL is in use or the directory has protected permissions, a cop
 
 - Upstream OBS ZIP is downloaded from the official release with source digest verification; OBS itself is not recompiled. The Windows launcher is native MSVC C++ and uses `--portable` with a Data-backed configuration junction/copy fallback.
 - Headless Windows tests verify hook files, an empty directory tree, an entirely empty hook directory, and preservation of a pre-existing host hook using **private test paths only**. Recording, virtual camera, audio, plugins and real Game Capture must be tested manually on Windows.
-- Static project/YAML checks and ZIP archive validation run in the artifact-creation environment. **r8 Windows compilation and real runtime behavior are unverified until your GitHub Actions run.** Do not claim the PAF was published or tested just because its workflow is included.
+- Static project/YAML checks and ZIP archive validation run in the artifact-creation environment. **The user reported a successful r8 ZIP Actions run. This source-only kit does not independently establish installer success.** Do not claim the PAF was published or tested just because its workflow is included.
 - Official references and constraints: `docs/PROGRAMDATA-HOOK.md`, `docs/SOURCE-AUDIT.md`, `docs/VALIDATION.md`, `docs/WINDOWS-ACCEPTANCE.md`, `docs/REFERENCES.md`.
 
 Not an official OBS Project or PortableApps.com release. Respect OBS's GPL and included dependencies; do not imply official certification or guaranteed antivirus behavior.
