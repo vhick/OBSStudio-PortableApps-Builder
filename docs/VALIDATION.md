@@ -28,3 +28,9 @@ The workflow contains runtime gates that are intended to execute on `windows-202
 - Archive extracted 2,290 files and 112 folders successfully.
 - r2 failed in `scripts/download-obs.ps1` because it required obsolete `obs-plugins`; OBS 33 uses `core`. Neither launcher compilation nor publishing was reached.
 - r3 adds a version-aware module validation function and synthetic PowerShell regression fixtures. The fixtures must execute on the next Windows Actions run; do not represent them as having run in this Linux container.
+
+## Evidence from the uploaded November 3, 2026 r3 Actions log
+
+- Source/tag resolution, publisher interface, OBS 32/33 layout fixture and OBS 33.0.1 ZIP SHA/extraction passed in a Windows GitHub Actions run.
+- MSVC compilation failed: `REPARSE_DATA_BUFFER` and `REPARSE_DATA_BUFFER_HEADER_SIZE` are unavailable from the ordinary Windows SDK headers.
+- r4 now declares a layout-checked mount-point buffer without WDK dependencies and adds `/Zs` early MSVC preflight before downloading OBS. The r4 preflight itself has **not** yet executed on Windows at delivery time.

@@ -7,7 +7,7 @@ files = [
     'README.md', '.github/workflows/build-portableapps.yml', 'launcher/OBSStudioPortable.cpp',
     'scripts/resolve.ps1', 'scripts/check-existing-release.ps1', 'scripts/download-obs.ps1', 'scripts/compile-launcher.ps1',
     'scripts/stage.ps1', 'scripts/build-official-paf.ps1', 'scripts/check-packages.ps1',
-    'scripts/package.ps1', 'tests/windows-smoke.ps1', 'tests/plugin-layout.ps1',
+    'scripts/package.ps1', 'scripts/preflight-launcher.ps1', 'tests/windows-smoke.ps1', 'tests/plugin-layout.ps1',
     'scripts/verify-obs-layout.ps1', 'docs/SOURCE-AUDIT.md'
 ]
 for name in files:
@@ -61,8 +61,8 @@ assert 'skip=false' in preflight and 'skip=true' in preflight
 release_check_step = yml.split('      - name: Check existing release and tag (HTTP 200/404 safe)', 1)[1].split('      - name:', 1)[0]
 assert 'gh release view' not in release_check_step
 assert 'scripts/check-existing-release.ps1' in yml
-assert '-r3' in yml and '-r1' not in yml
-print('r3 release-check guard passed: REST 200/404 branches and tag-collision safeguards are present (not live-tested).')
+assert '-r4' in yml and '-r3' not in yml
+print('r4 release-check guard passed: REST 200/404 branches and tag-collision safeguards are present (not live-tested).')
 
 # Regression for OBS Studio 33's migration from obs-plugins to core modules.
 layout = (root / 'scripts/verify-obs-layout.ps1').read_text()
@@ -75,5 +75,19 @@ fixtures = (root / 'tests/plugin-layout.ps1').read_text()
 for expected in ("Version '32.2.0'", "Version '33.0.1'", 'rejectedModern', 'rejectedEmpty'):
     assert expected in fixtures, f'Missing new/legacy plugin layout fixture: {expected}'
 assert 'run: ./tests/plugin-layout.ps1' in yml
-assert "package_revision='r3'" in stage
-print('r3 OBS plugin-layout guard passed: modern/legacy verification and Windows fixture are wired in (not executed here).')
+assert "package_revision='r4'" in stage
+print('r4 OBS plugin-layout guard passed: modern/legacy verification and Windows fixture are wired in (not executed here).')
+
+# r4 regression: Windows SDK user-mode headers do not provide the kernel WDK
+# REPARSE_DATA_BUFFER type. Test for our explicit, offset-checked wire layout.
+assert 'struct ObsMountPointReparseBuffer' in launcher
+assert 'static_assert(kObsReparseHeaderBytes == 8' in launcher
+assert 'static_assert(kObsMountPointPrefixBytes == 16' in launcher
+assert 'reinterpret_cast<ObsMountPointReparseBuffer*>' in launcher
+assert 'reinterpret_cast<REPARSE_DATA_BUFFER*>' not in launcher
+assert 'FIELD_OFFSET(REPARSE_DATA_BUFFER' not in launcher
+preflight=(root / 'scripts/preflight-launcher.ps1').read_text()
+assert '/Zs' in preflight and 'vcvars64.bat' in preflight
+assert 'run: ./scripts/preflight-launcher.ps1' in yml
+assert yml.index('run: ./scripts/preflight-launcher.ps1') < yml.index('run: ./scripts/download-obs.ps1')
+print('r4 MSVC regression guard passed: portable mount-point struct and early source compilation step wired in (Windows run pending).')

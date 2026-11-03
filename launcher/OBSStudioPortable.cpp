@@ -20,6 +20,8 @@
 #include <functional>
 #include <utility>
 #include <cstdint>
+#include <cstddef>
+#include <climits>
 
 namespace fs = std::filesystem;
 using Path = fs::path;
@@ -107,6 +109,29 @@ static std::wstring timestamp_suffix() {
              t.wHour,t.wMinute,t.wSecond,GetCurrentProcessId());
     return buffer;
 }
+// Microsoft documents REPARSE_DATA_BUFFER in the WDK's ntifs.h, which is NOT
+// part of the ordinary user-mode Visual Studio C++ build environment.
+// We only need the Windows-defined mount-point payload. Declare that exact wire
+// layout here, using standard Win32 types provided by windows.h/winioctl.h.
+// This avoids requiring the Windows Driver Kit or mixing kernel and user headers.
+struct ObsMountPointReparseBuffer {
+    ULONG ReparseTag;
+    USHORT ReparseDataLength;
+    USHORT Reserved;
+    struct {
+        USHORT SubstituteNameOffset;
+        USHORT SubstituteNameLength;
+        USHORT PrintNameOffset;
+        USHORT PrintNameLength;
+        WCHAR PathBuffer[1];
+    } MountPointReparseBuffer;
+};
+constexpr size_t kObsReparseHeaderBytes = offsetof(ObsMountPointReparseBuffer, MountPointReparseBuffer);
+constexpr size_t kObsMountPointPrefixBytes = offsetof(ObsMountPointReparseBuffer, MountPointReparseBuffer.PathBuffer);
+static_assert(kObsReparseHeaderBytes == 8, "Unexpected reparse header layout");
+static_assert(kObsMountPointPrefixBytes == 16, "Unexpected mount-point payload layout");
+static_assert(sizeof(WCHAR) == 2, "Mount-point paths require UTF-16 WCHAR");
+
 static bool make_junction(const Path& link, const Path& target) {
     // A directory junction is supported without elevation on writable NTFS volumes.
     // It keeps live OBS config in Data, unlike temporary App/config copies.
@@ -117,14 +142,31 @@ static bool make_junction(const Path& link, const Path& target) {
     std::wstring absolute = fs::absolute(target).wstring();
     const std::wstring substitute = L"\\??\\" + absolute;
     const std::wstring printed = absolute;
-    const USHORT sublen = (USHORT)(substitute.size() * sizeof(wchar_t));
-    const USHORT printlen = (USHORT)(printed.size() * sizeof(wchar_t));
-    const size_t prefix = FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer);
-    const size_t bytecount = prefix + sublen + sizeof(wchar_t) + printlen + sizeof(wchar_t);
+    // Both name lengths are USHORT in the filesystem wire format.
+    if (substitute.size() * sizeof(WCHAR) > USHRT_MAX ||
+        printed.size() * sizeof(WCHAR) > USHRT_MAX) {
+        CloseHandle(handle);
+        RemoveDirectoryW(link.c_str());
+        return false;
+    }
+    const USHORT sublen = static_cast<USHORT>(substitute.size() * sizeof(WCHAR));
+    const USHORT printlen = static_cast<USHORT>(printed.size() * sizeof(WCHAR));
+    const size_t bytecount = kObsMountPointPrefixBytes + sublen + sizeof(WCHAR) + printlen + sizeof(WCHAR);
+    // Microsoft's maximum reparse buffer is 16 KiB. Use a local bound so this
+    // user-mode launcher never depends on optional WDK-only constants.
+    constexpr size_t kObsMaxReparseBufferBytes = 16u * 1024u;
+    // Reparse point buffers are capped at 16 KiB; reject oversize path data
+    // instead of truncating the Win32 USHORT length fields.
+    if (bytecount > kObsMaxReparseBufferBytes ||
+        bytecount - kObsReparseHeaderBytes > USHRT_MAX) {
+        CloseHandle(handle);
+        RemoveDirectoryW(link.c_str());
+        return false;
+    }
     std::vector<BYTE> bytes(bytecount, 0);
-    auto *reparse = reinterpret_cast<REPARSE_DATA_BUFFER*>(bytes.data());
+    auto *reparse = reinterpret_cast<ObsMountPointReparseBuffer*>(bytes.data());
     reparse->ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
-    reparse->ReparseDataLength = (USHORT)(bytecount - REPARSE_DATA_BUFFER_HEADER_SIZE);
+    reparse->ReparseDataLength = static_cast<USHORT>(bytecount - kObsReparseHeaderBytes);
     reparse->MountPointReparseBuffer.SubstituteNameOffset = 0;
     reparse->MountPointReparseBuffer.SubstituteNameLength = sublen;
     reparse->MountPointReparseBuffer.PrintNameOffset = sublen + sizeof(wchar_t);
