@@ -38,21 +38,13 @@ jobs:
         id: upstream
         run: ./scripts/resolve.ps1 -Version '${{ inputs.upstream_version }}'
 
-      - name: Check existing release before downloading 224MB upstream archive
+      - name: Check existing release and tag (HTTP 200/404 safe)
         id: existing
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r1
-        run: |
-          $result = & gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release already exists: $env:RELEASE_TAG"
-            'skip=true' >> $env:GITHUB_OUTPUT
-          } elseif (([string]($result -join ' ')) -match '(?i)(not found|http 404|release not found)') {
-            'skip=false' >> $env:GITHUB_OUTPUT
-          } else {
-            throw "Could not check existing release; refusing to assume missing: $result"
-          }
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r2
+        run: ./scripts/check-existing-release.ps1
 
       - name: Verify shared publisher action version and interface
         if: steps.existing.outputs.skip != 'true'
@@ -116,8 +108,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r1
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r1)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r2
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r2)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -130,8 +122,8 @@ jobs:
           files: |
             output/*.zip
             output/*.paf.exe
-          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r1
-          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r1)
+          tag: portable-obs-v${{ steps.upstream.outputs.version }}-r2
+          release-title: OBS Studio ${{ steps.upstream.outputs.version }} PortableApps (builder r2)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
@@ -141,7 +133,7 @@ jobs:
         if: steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r1
+          RELEASE_TAG: portable-obs-v${{ steps.upstream.outputs.version }}-r2
         run: |
           $release = gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json assets | ConvertFrom-Json
           $names=@($release.assets | ForEach-Object name)
