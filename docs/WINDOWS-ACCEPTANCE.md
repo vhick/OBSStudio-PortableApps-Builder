@@ -14,3 +14,13 @@
 12. If using the virtual camera, independently check OS driver/filter registration. The portable builder does not install a virtual camera driver.
 
 A PAF archive passing `7z t` is **not** equivalent to this installation/upgrade acceptance checklist.
+
+## Additional r8 Game Capture hook acceptance (manual Windows test)
+
+1. Use a disposable copy of the r8 PortableApps ZIP and back up its `Data`. Confirm whether `%PROGRAMDATA%\obs-studio-hook` already exists; **do not delete a shared existing folder**.
+2. For an isolated test machine where the folder does not already exist, launch OBS, set up a **Game Capture** source and confirm it works. Close OBS and the game before inspecting ProgramData.
+3. Verify `Data\TraceGuard\ProgramData\obs-studio-hook` preserved any created files plus empty directory tree. Verify the outside folder is gone only when nothing was locking/sharing it.
+4. Restart OBS, verify Game Capture is still functional and repeat. Do not manually inject saved older hook DLLs into ProgramData.
+5. Test on a machine with an **existing host hook folder**: the existing folder's contents and timestamps must not be changed by the portable launcher. Do not run two OBS versions simultaneously.
+6. Check `Data\launcher.log` for permission-denied/locked-file notes. Do not report full portability where Game Capture or permissions prevent cleanup.
+7. Install the official r8 PAF into a separate disposable PortableApps directory and repeat the tests. Check that `Data` is preserved during an upgrade.

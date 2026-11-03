@@ -11,6 +11,15 @@ Test-Pe $exe
 # The launcher itself runs its Windows filesystem capture integration fixture.
 # All four cases, including empty nested directory trees, are checked by C++.
 Invoke-Bounded $exe @('--traceguard-selftest') $stage 30 | Out-Null
+# Test ProgramData hook preservation without touching the runner's real ProgramData.
+Invoke-Bounded $exe @('--programdata-hook-selftest') $stage 45 | Out-Null
+$hostFixture=Join-Path $stage 'Data/_ProgramDataHookSelfTest/ProgramData/obs-studio-hook/installed-obs-keep.txt'
+Assert (Test-Path $hostFixture -PathType Leaf) 'Pre-existing host hook fixture was modified or removed'
+Assert ((Get-Content $hostFixture -Raw).Trim() -eq 'pre-existing host data') 'Pre-existing host hook contents were modified'
+$hookData=Join-Path $stage 'Data/_ProgramDataHookSelfTest/CapturedData/TraceGuard/ProgramData/obs-studio-hook'
+Assert (Test-Path $hookData -PathType Container) 'ProgramData hook was not preserved under portable test Data'
+Assert (@(Get-ChildItem $hookData -Force).Count -eq 0) 'Empty-directory capture failed'
+
 $folder="$stage/Data/TraceGuard/Local/obs-studio-portable-fixture-test"
 foreach($relative in @('created.txt','nested/nonempty/nested.txt','totally-empty','empty-tree/deep/leaf')) {
   Assert (Test-Path (Join-Path $folder $relative)) "TraceGuard missing fixture: $relative"

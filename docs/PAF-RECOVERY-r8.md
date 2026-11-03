@@ -1,0 +1,7 @@
+# r8 official PAF-only pipeline
+
+This build must be performed AFTER the r8 ZIP release publishes. It downloads only the existing r8 ZIP and SHA256SUMS.txt, verifies both, and runs the official PortableApps.com Installer 3.9.22 without GUI automation. This is the r7-tested technique adapted to the new compiled r8 launcher. A PAF built from r5 or r7 binaries would not contain the ProgramData hook fix and is explicitly rejected.
+
+Run Actions -> **Official OBS PAF r8 from existing r8 ZIP (no OBS rebuild)**. Set `source_release_tag=portable-obs-v33.0.1-r8` if that is the published ZIP tag (otherwise use the actual stable version). The source asset is `OBSStudioPortable_<version>_r8_win64.zip`. The output goes under a separate tag `portable-obs-v<version>-r8-paf` and is `OBSStudioPortable_<version>_r8_win64.paf.exe`, alongside SHA256SUMS.txt. This prevents collision with the already existing r8 ZIP release.
+
+The project keeps `.github/workflows/official-paf-from-r5.yml` as the filename for reliable GitHub Desktop overwrite of the old workflow. Its title and behavior now refer only to r8, and its source acceptance check is strict. As with r7, the vendor CLI probe, time-bounded compression monitor, PE validation, archive integrity and packaged OBS + launcher byte comparisons are mandatory. The user must separately test installing/upgrading an official PAF on a disposable PortableApps directory.

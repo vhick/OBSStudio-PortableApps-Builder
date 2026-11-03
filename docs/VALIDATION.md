@@ -47,3 +47,13 @@ The workflow contains runtime gates that are intended to execute on `windows-202
 ## r6 PAF-only workflow (2026-11-03)
 
 User confirmed r5 builds and publishes a working ZIP but no PAF. The precise error message in the optional r5 PAF step was not supplied. This r6 project adds mandatory PAF-only recovery from the published r5 ZIP. Locally verified: both YAML workflows parse and both Python static test suites pass; project ZIP integrity verified. **Not executed here:** Windows PowerShell, downloading the r5 release, genuine PortableApps.com Installer compilation, PAF extraction and checksums on Windows, GUI installer acceptance, or Release publishing.
+
+## r8 ProgramData hook revision — new in this kit (2026-11-03)
+
+The user confirmed the r7 two-workflow design builds both ZIP and official PAF on their GitHub Actions runner. That is a user report, not an r8 test. r8 modifies the actual compiled launcher to capture a newly created Game Capture hook directory and makes the PAF-only job strictly reuse the matching r8 ZIP instead of the old r5 launcher.
+
+**Static local checks:** Run `python tests/static-check.py` and `python tests/paf-only-static.py`; both validate workflow structure, safe copy-before-remove, official publisher integration and correct revision/source binding. Windows workflow parsing is checked, and builder ZIP is tested for integrity.
+
+**Not verified in this environment:** Windows MSVC compilation of the changed launcher, actual OBS Game Capture, Windows process-lock handling, real ProgramData permissions, vendor PAF generation from the new r8 ZIP, live release publishing, and manual install/upgrade acceptance. The `--programdata-hook-selftest` fixture is designed to run in the Windows full-build job, not this container.
+
+**Safety exception:** A pre-existing `%PROGRAMDATA%\obs-studio-hook` is intentionally left alone; a failed/locked cleanup can also leave it in place. This does not mean the launcher can guarantee zero ProgramData traces under all circumstances.

@@ -27,3 +27,10 @@
 **r4 linker errors LNK2019 (`MessageBoxW`, `CommandLineToArgvW`):** r5 links `User32.lib` and `Shell32.lib` in both compiler invocation paths. The early preflight now compiles **and links** an actual executable before OBS is downloaded; `/Zs` alone cannot catch this error.
 
 **Windows OBS `--version` / `--help`:** OBS's official launch parameter documentation explicitly says these options are unavailable on Windows. r5 runs `--storage-selftest` in CI instead. This does not prove OBS's real GUI runs; complete the manual acceptance checklist on a normal Windows desktop.
+
+## r8: C:\ProgramData\obs-studio-hook still exists after OBS exits
+
+- If the directory existed **before r8 started**, TraceGuard deliberately leaves it intact. It could belong to an installed OBS or another game-capture application. See `PROGRAMDATA-HOOK.md` for a cautious opt-in manual one-time migration.
+- If a new directory remains after closing OBS, close any running games (they may be using the DLL) and inspect `Data\launcher.log`. Check ProgramData permissions, locked files and contents that appeared during cleanup. Never delete a shared hook blindly.
+- Successful capture should create `Data\TraceGuard\ProgramData\obs-studio-hook` and record an entry in `Data\TraceGuard\relocation-manifest.tsv`. Missing the folder can also mean Game Capture was never used, so OBS never created it.
+- If r8 PAF-only runs immediately skip, confirm the ZIP step created `portable-obs-v<version>-r8` and that the PAF target is the separate `portable-obs-v<version>-r8-paf` release.

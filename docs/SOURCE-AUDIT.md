@@ -57,3 +57,7 @@ Portable third-party plugins have a separate new `plugins` location; old
 folder in a clean OBS 33 ZIP. The builder validates built-in module DLLs in
 `core` for OBS 33+ and in `obs-plugins` for OBS 32 and earlier, preserving the
 upstream directory layout unchanged.
+
+## r8 Game Capture ProgramData hook source evidence (2026-11-03)
+
+OBS Project's issue https://github.com/obsproject/obs-studio/issues/10486 confirms OBS portable mode can create `%PROGRAMDATA%\obs-studio-hook`. Core maintainers state this shared path is required by the Game Capture hook and moving it during execution can break capture. The discussion was closed as not planned on 2026-04-23. The upstream Windows Steam install script (https://github.com/obsproject/obs-studio/blob/master/build-aux/steam/scripts_windows/install.bat) also explicitly creates `%PROGRAMDATA%\obs-studio-hook`. The path is a Game Capture integration, **not** an independently relocatable OBS profile. r8 only captures safely attributable directories after exit, never pre-existing host contents. See `docs/PROGRAMDATA-HOOK.md`.

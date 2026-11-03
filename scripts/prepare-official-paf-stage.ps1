@@ -1,5 +1,5 @@
 # Apply PortableApps.com Format 3.9 *packaging metadata* corrections to the
-# COPY of the existing r5 ZIP, never to its source GitHub release or binaries.
+# COPY of the existing r8 ZIP, never to its source GitHub release or binaries.
 # App and launcher hashes must not change. No Data is populated or overwritten.
 . "$PSScriptRoot/common.ps1"
 $project=(Resolve-Path "$PSScriptRoot/..").Path
@@ -13,7 +13,7 @@ $info=Join-Path $stage 'App/AppInfo'
 Assert (Test-Path -LiteralPath "$info/appinfo.ini") 'Missing appinfo.ini'
 Assert (Test-Path -LiteralPath "$info/installer.ini") 'Missing installer.ini'
 Assert (Test-Path -LiteralPath "$info/appicon_128.png") 'Missing genuine upstream OBS icon'
-# Format 3.9 calls for 16/32/75/128/256 PNG variants. The original r5 ZIP
+# Format 3.9 calls for 16/32/75/128/256 PNG variants. The original r8 ZIP
 # included 16/32/48/128, so derive the missing variants from upstream icon.
 Add-Type -AssemblyName System.Drawing
 foreach($size in @(75,256)) {

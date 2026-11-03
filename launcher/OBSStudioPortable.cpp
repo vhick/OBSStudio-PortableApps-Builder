@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <climits>
+#include <iterator>
 
 namespace fs = std::filesystem;
 using Path = fs::path;
@@ -102,6 +103,59 @@ static void safe_copy_tree(const Path& source, const Path& destination, const Pa
         if (!same_bytes(p, dest)) throw std::runtime_error("Data copy verification failed");
     }
 }
+// Only a directory that did not exist before this portable session may be
+// claimed. A verify-before-remove routine prevents deleting a late new file
+// or deleting a file whose contents changed after it was copied to Data.
+// In particular, do not call remove_all() on a shared ProgramData directory.
+static void safe_capture_and_remove(const Path& source, const Path& destination,
+                                    const Path& conflict_root) {
+    if (is_reparse(source)) throw std::runtime_error("External root is a reparse point");
+    std::vector<Path> files;
+    std::vector<Path> directories;
+    std::error_code ec;
+    if (!fs::is_directory(source, ec) || ec) throw std::runtime_error("External root unavailable");
+    for (fs::recursive_directory_iterator it(source), end; it != end; ++it) {
+        Path entry = it->path();
+        if (is_reparse(entry)) throw std::runtime_error("Refuse to remove external tree containing a reparse point");
+        if (it->is_directory()) directories.push_back(fs::relative(entry, source));
+        else if (it->is_regular_file()) files.push_back(fs::relative(entry, source));
+        else throw std::runtime_error("Unknown external object; leave host folder intact");
+    }
+    safe_copy_tree(source, destination, conflict_root);
+    // Check the complete original inventory still exists and was preserved.
+    for (const auto& rel : directories) {
+        if (!fs::is_directory(source / rel) || !fs::is_directory(destination / rel))
+            throw std::runtime_error("External directory changed during capture");
+    }
+    for (const auto& rel : files) {
+        if (!same_bytes(source / rel, destination / rel))
+            throw std::runtime_error("External file changed during capture");
+    }
+    // Do not delete any files if another application added to this tree while
+    // it was copied. This is a safety check, not a claim of process ownership.
+    size_t observed = 0;
+    for (fs::recursive_directory_iterator it(source), end; it != end; ++it) {
+        if (is_reparse(it->path())) throw std::runtime_error("New external reparse point appeared");
+        ++observed;
+    }
+    if (observed != directories.size() + files.size())
+        throw std::runtime_error("External tree changed during capture; preserving host directory");
+    for (const auto& rel : files) {
+        if (!same_bytes(source / rel, destination / rel))
+            throw std::runtime_error("External file changed before removal");
+        if (!fs::remove(source / rel)) throw std::runtime_error("External file could not be removed");
+    }
+    std::sort(directories.begin(), directories.end(), [](const Path& a, const Path& b) {
+        return std::distance(a.begin(), a.end()) > std::distance(b.begin(), b.end());
+    });
+    for (const auto& rel : directories) {
+        if (!fs::remove(source / rel)) throw std::runtime_error("External subdirectory is not empty or is locked");
+    }
+    // remove() only succeeds for an empty directory, so a concurrent writer
+    // cannot cause us to recursively delete a new file.
+    if (!fs::remove(source)) throw std::runtime_error("External directory is not empty or is locked");
+}
+
 static std::wstring timestamp_suffix() {
     SYSTEMTIME t; GetSystemTime(&t);
     wchar_t buffer[48];
@@ -183,7 +237,8 @@ static bool make_junction(const Path& link, const Path& target) {
 }
 static bool starts_obs_name(std::wstring name) {
     name = lower(name);
-    return name == L"obs-studio" || name == L"obs-studio-updater" ||
+    return name == L"obs-studio" || name == L"obs-studio-hook" ||
+           name == L"obs-studio-updater" ||
            name.rfind(L"obs-studio-portable-",0)==0 || name.rfind(L"obs_portable_",0)==0;
 }
 struct ObservedRoot {
@@ -202,7 +257,7 @@ static std::vector<ObservedRoot> snapshot_roots() {
         std::error_code ec;
         for(fs::directory_iterator it(o.base,fs::directory_options::skip_permission_denied,ec),end;
             it!=end && !ec; it.increment(ec)) {
-            if(it->is_directory(ec)) o.before.insert(lower(it->path().filename().wstring()));
+            if(it->exists(ec)) o.before.insert(lower(it->path().filename().wstring()));
             ec.clear();
         }
         result.push_back(std::move(o));
@@ -222,15 +277,14 @@ static void capture_new_external(const std::vector<ObservedRoot>& roots,
             if(o.before.count(name) || !starts_obs_name(name) || is_reparse(path)) continue;
             try {
                 Path dest=data/L"TraceGuard"/o.label/path.filename();
-                safe_copy_tree(path,dest,conflicts/o.label/path.filename());
+                safe_capture_and_remove(path,dest,conflicts/o.label/path.filename());
                 std::wofstream manifest(data/L"TraceGuard"/L"relocation-manifest.tsv",std::ios::app);
                 if(manifest) manifest << path.wstring() << L'\t' << dest.wstring() << L'\n';
-                // Delete only a new, whitelisted folder that did not exist before this session,
-                // and only after verified complete copying. No shared directory is traversed.
-                fs::remove_all(path);
-                log_line(log,L"Captured newly created OBS-named external directory: "+name);
+                // Ownership comes from the before/after snapshot. A pre-existing
+                // ProgramData hook folder always remains untouched.
+                log_line(log,L"Captured newly created OBS-owned external directory: "+name);
             } catch(const std::exception&) {
-                log_line(log,L"External location could not be safely moved; original left unchanged: "+name);
+                log_line(log,L"External location could not be fully relocated; leftovers remain for manual review: "+name);
             }
             ec.clear();
         }
@@ -286,6 +340,60 @@ static int self_test_trace_guard(const Path& data, const Path& log) {
         throw std::runtime_error("TraceGuard file/empty-directory capture assertion failed");
     return 0;
 }
+// Emulates the game-capture hook using a private ProgramData fixture only;
+// never touches the runner's actual C:\ProgramData. A pre-existing host folder
+// must survive unchanged, including when its name is obs-studio-hook.
+static int self_test_programdata_hook(const Path& data, const Path& log) {
+    const Path sandbox = data / L"_ProgramDataHookSelfTest";
+    const Path programData = sandbox / L"ProgramData";
+    const Path testData = sandbox / L"CapturedData";
+    fs::create_directories(programData);
+    fs::create_directories(testData);
+    const std::wstring previous = env(L"PROGRAMDATA");
+    if (!SetEnvironmentVariableW(L"PROGRAMDATA", programData.c_str()))
+        throw std::runtime_error("Cannot set private ProgramData test root");
+    try {
+        const auto roots = snapshot_roots();
+        const Path hook = programData / L"obs-studio-hook";
+        if (fs::exists(hook)) throw std::runtime_error("Hook test host root already exists");
+        fs::create_directories(hook / L"nested" / L"empty" / L"deep");
+        fs::create_directories(hook / L"empty-only");
+        std::ofstream(hook / L"graphics-hook64.dll", std::ios::binary) << "hook fixture";
+        std::ofstream(hook / L"nested" / L"sample.txt", std::ios::binary) << "nested fixture";
+        capture_new_external(roots, testData, log);
+        const Path saved = testData / L"TraceGuard" / L"ProgramData" / L"obs-studio-hook";
+        if (fs::exists(hook) || !fs::is_regular_file(saved / L"graphics-hook64.dll") ||
+            !fs::is_regular_file(saved / L"nested" / L"sample.txt") ||
+            !fs::is_directory(saved / L"nested" / L"empty" / L"deep") ||
+            !fs::is_directory(saved / L"empty-only"))
+            throw std::runtime_error("ProgramData hook capture did not preserve file and empty folder hierarchy");
+        // A previously existing hook may belong to a conventional OBS install.
+        fs::create_directories(hook);
+        std::ofstream(hook / L"installed-obs-keep.txt") << "pre-existing host data";
+        const auto preexisting = snapshot_roots();
+        capture_new_external(preexisting, testData, log);
+        if (!fs::is_regular_file(hook / L"installed-obs-keep.txt"))
+            throw std::runtime_error("Pre-existing ProgramData hook must not be claimed");
+        // A newly created, completely empty hook directory is also preserved.
+        const Path secondRoot = sandbox / L"EmptyProgramData";
+        fs::create_directories(secondRoot);
+        if (!SetEnvironmentVariableW(L"PROGRAMDATA", secondRoot.c_str()))
+            throw std::runtime_error("Cannot switch private ProgramData test root");
+        const auto emptyRoots = snapshot_roots();
+        const Path emptyHook = secondRoot / L"obs-studio-hook";
+        fs::create_directories(emptyHook);
+        fs::remove_all(saved); // Private disposable test Data only.
+        capture_new_external(emptyRoots, testData, log);
+        if (fs::exists(emptyHook) || !fs::is_directory(saved) || !fs::is_empty(saved))
+            throw std::runtime_error("Empty ProgramData hook directory was not captured");
+    } catch (...) {
+        SetEnvironmentVariableW(L"PROGRAMDATA", previous.empty() ? nullptr : previous.c_str());
+        throw;
+    }
+    SetEnvironmentVariableW(L"PROGRAMDATA", previous.empty() ? nullptr : previous.c_str());
+    return 0;
+}
+
 // A headless Windows storage test that exercises the actual launcher junction
 // and verified copy-back code without attempting to open OBS's Qt GUI.
 // OBS's documented --version and --help commands are not available on Windows.
@@ -348,6 +456,8 @@ static int launch(int argc,wchar_t** argv) {
     try {
         if(argc>1 && std::wstring(argv[1])==L"--traceguard-selftest") {
             result=self_test_trace_guard(data,log);
+        } else if(argc>1 && std::wstring(argv[1])==L"--programdata-hook-selftest") {
+            result=self_test_programdata_hook(data,log);
         } else if(argc>1 && std::wstring(argv[1])==L"--storage-selftest") {
             result=self_test_portable_storage(link,saved,data);
         } else {

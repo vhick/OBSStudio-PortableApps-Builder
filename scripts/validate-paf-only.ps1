@@ -2,8 +2,8 @@ param([Parameter(Mandatory=$true)][string]$Version)
 . "$PSScriptRoot/common.ps1"
 Assert ($Version -match '^\d+\.\d+\.\d+$') 'Unsafe version'
 $project=(Resolve-Path "$PSScriptRoot/..").Path
-$paf=Join-Path $project "output/OBSStudioPortable_${Version}_r7_win64.paf.exe"
-Assert (Test-Path -LiteralPath $paf -PathType Leaf) 'Official r7 PAF was not produced'
+$paf=Join-Path $project "output/OBSStudioPortable_${Version}_r8_win64.paf.exe"
+Assert (Test-Path -LiteralPath $paf -PathType Leaf) 'Official r8 PAF was not produced'
 Test-Pe $paf
 $prov=Get-Content -Raw -LiteralPath "$project/build/paf-provenance.json" | ConvertFrom-Json
 Assert ($prov.engine -ceq 'original-unmodified-PortableApps.comInstaller') 'Not produced by genuine official tool'
@@ -16,5 +16,5 @@ Assert ((Get-Content -Raw "$project/build/paf-source.json" | ConvertFrom-Json).s
 $seven=Find-SevenZip
 Invoke-Bounded $seven @('t',$paf) $project 180 | Out-Null
 $files=@(Get-ChildItem -Path "$project/output" -File)
-Assert ($files.Count -eq 1 -and $files[0].Name -ceq "OBSStudioPortable_${Version}_r7_win64.paf.exe") 'PAF-only workflow must not publish any ZIP or unrelated files'
+Assert ($files.Count -eq 1 -and $files[0].Name -ceq "OBSStudioPortable_${Version}_r8_win64.paf.exe") 'PAF-only workflow must not publish any ZIP or unrelated files'
 Write-Host "Validated official PAF ($Version) SHA256: $(Get-Sha $paf)" -ForegroundColor Green

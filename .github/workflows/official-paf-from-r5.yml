@@ -1,12 +1,12 @@
-name: Official OBS PAF r7 from existing r5 ZIP (no OBS rebuild)
+name: Official OBS PAF r8 from existing r8 ZIP (no OBS rebuild)
 
 on:
   workflow_dispatch:
     inputs:
       source_release_tag:
-        description: 'Existing successful r5 release to reuse (must contain ZIP + SHA256SUMS.txt)'
+        description: 'Existing successful r8 release to reuse (must contain ZIP + SHA256SUMS.txt)'
         required: true
-        default: 'portable-obs-v33.0.1-r5'
+        default: 'portable-obs-v33.0.1-r8'
         type: string
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
       - name: Run PAF-only static regression checks
         run: python ./tests/paf-only-static.py
 
-      - name: Check r5 source release and locate existing verified ZIP
+      - name: Check r8 source release and locate existing verified ZIP
         id: source
         timeout-minutes: 2
         env:
@@ -40,12 +40,12 @@ jobs:
           SOURCE_RELEASE_TAG: ${{ inputs.source_release_tag }}
         run: ./scripts/resolve-paf-source.ps1 -SourceReleaseTag $env:SOURCE_RELEASE_TAG
 
-      - name: Check target r7 tag before downloading 200+ MB ZIP
+      - name: Check target r8-paf tag before downloading 200+ MB ZIP
         id: existing
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r7
+          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r8-paf
         run: ./scripts/check-existing-release.ps1
 
       - name: Verify Universal Portable Release Publisher v1.1.1 interface
@@ -64,16 +64,16 @@ jobs:
         timeout-minutes: 5
         run: ./scripts/preflight-official-paf.ps1
 
-      - name: Download existing r5 ZIP and SHA-256, validate and restore stage
+      - name: Download existing r8 ZIP and SHA-256, validate and restore stage
         if: steps.existing.outputs.skip != 'true'
         timeout-minutes: 12
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RELEASE_TAG: ${{ steps.source.outputs.source_tag }}
           SOURCE_VERSION: ${{ steps.source.outputs.version }}
-        run: ./scripts/restore-r5-stage.ps1 -SourceReleaseTag $env:SOURCE_RELEASE_TAG -Version $env:SOURCE_VERSION
+        run: ./scripts/restore-r8-stage.ps1 -SourceReleaseTag $env:SOURCE_RELEASE_TAG -Version $env:SOURCE_VERSION
 
-      - name: Normalize r5 PAF metadata to PortableApps Format 3.9 without touching OBS binaries
+      - name: Normalize r8 PAF metadata to PortableApps Format 3.9 without touching OBS binaries
         if: steps.existing.outputs.skip != 'true'
         timeout-minutes: 2
         run: ./scripts/prepare-official-paf-stage.ps1
@@ -81,7 +81,7 @@ jobs:
       - name: Produce official PortableApps.com PAF (mandatory, no GUI wizard)
         if: steps.existing.outputs.skip != 'true'
         timeout-minutes: 22
-        run: ./scripts/build-official-paf.ps1 -RequirePaf -PackageRevision r7
+        run: ./scripts/build-official-paf.ps1 -RequirePaf -PackageRevision r8
 
       - name: Check official PAF provenance and package integrity
         if: steps.existing.outputs.skip != 'true'
@@ -95,38 +95,38 @@ jobs:
         uses: vhick/portable-release-publisher@v1.1.1
         with:
           files: output/*.paf.exe
-          tag: portable-obs-v${{ steps.source.outputs.version }}-r7
-          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from existing r5 ZIP (r7)
+          tag: portable-obs-v${{ steps.source.outputs.version }}-r8-paf
+          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from r8 ZIP (r8)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
           dry-run: 'true'
 
-      - name: Publish PAF alone into new r7 release (keep r5 ZIP untouched)
+      - name: Publish PAF alone into new r8-paf release (keep r8 ZIP untouched)
         if: steps.existing.outputs.skip != 'true'
         uses: vhick/portable-release-publisher@v1.1.1
         with:
           files: output/*.paf.exe
-          tag: portable-obs-v${{ steps.source.outputs.version }}-r7
-          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from existing r5 ZIP (r7)
+          tag: portable-obs-v${{ steps.source.outputs.version }}-r8-paf
+          release-title: OBS Studio ${{ steps.source.outputs.version }} official PAF from r8 ZIP (r8)
           tag-prefix: portable-
           keep-releases: '3'
           prune: 'false'
           dry-run: 'false'
 
-      - name: Confirm new r7 release contains exactly the expected PAF and checksum
+      - name: Confirm new r8-paf release contains exactly the expected PAF and checksum
         if: steps.existing.outputs.skip != 'true'
         timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r7
+          RELEASE_TAG: portable-obs-v${{ steps.source.outputs.version }}-r8-paf
         run: |
           $data = & gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
           if($LASTEXITCODE -ne 0) { throw 'Published release lookup failed.' }
           $names=@($data.assets | ForEach-Object { $_.name })
-          $expected="OBSStudioPortable_${{ steps.source.outputs.version }}_r7_win64.paf.exe"
+          $expected="OBSStudioPortable_${{ steps.source.outputs.version }}_r8_win64.paf.exe"
           if($names.Count -ne 2 -or $names -cnotcontains $expected -or $names -cnotcontains 'SHA256SUMS.txt') {
-            throw "Unexpected r7 release assets: $($names -join ', ')"
+            throw "Unexpected r8 release assets: $($names -join ', ')"
           }
           Write-Host "PAF published and verified: $expected"
-          Write-Host 'Original r5 release and ZIP remain unchanged.'
+          Write-Host 'Original r8 ZIP release remains unchanged.'

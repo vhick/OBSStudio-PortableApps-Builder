@@ -1,6 +1,6 @@
 param(
   [switch]$RequirePaf,
-  [ValidateSet('r5','r6','r7')][string]$PackageRevision='r5'
+  [ValidateSet('r8')][string]$PackageRevision='r8'
 )
 . "$PSScriptRoot/common.ps1"
 $project=(Resolve-Path "$PSScriptRoot/..").Path
@@ -10,11 +10,7 @@ $out=Join-Path $project 'output'
 Ensure-Directory $out
 Assert ($m.version -match '^\d+\.\d+\.\d+$') 'Invalid upstream release metadata'
 Assert (@(Get-ChildItem -LiteralPath "$stage/Data" -Force -Recurse -ErrorAction Stop).Count -eq 0) 'Data must be empty in release packaging stage'
-if($PackageRevision -eq 'r7') {
-  Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -notmatch '(?mi)^RemoveDataDirectory\s*=') 'Obsolete Data removal key present.'
-} else {
-  Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -match '(?m)^RemoveDataDirectory=false\s*$') 'Original r5 Data upgrade protection is absent'
-}
+Assert ((Get-Content -Raw "$stage/App/AppInfo/installer.ini") -notmatch '(?mi)^RemoveDataDirectory\s*=') 'Obsolete Data removal key present.'
 Test-Pe "$stage/OBSStudioPortable.exe"
 Test-Pe "$stage/App/OBSStudio/bin/64bit/obs64.exe"
 
@@ -34,8 +30,8 @@ try {
   Write-Host "Official packager: $tool"
   Write-Host "Stage: $stage"
   $begun=[DateTime]::UtcNow.AddSeconds(-15)
-  $maxSeconds=if($PackageRevision -eq 'r7') { 1080 } else { 420 }
-  $idleSeconds=if($PackageRevision -eq 'r7') { 180 } else { 110 }
+  $maxSeconds=1080
+  $idleSeconds=180
   Invoke-OfficialPackager -Exe $tool -Stage $stage -Work $work -LogFile "$work/official-run.log" -MaxSeconds $maxSeconds -IdleSeconds $idleSeconds
 
   # The packager chooses its own name and output directory. Search controlled
@@ -58,7 +54,7 @@ try {
   Invoke-Bounded $seven @('t',$found) $work 180 | Out-Null
 
   # Actually expand the generated NSIS archive (NOT executing its installer),
-  # then compare both Windows executables against the verified r5 ZIP contents.
+  # then compare both Windows executables against the validated portable stage contents.
   if(Test-Path -LiteralPath $verify) { Remove-Item -LiteralPath $verify -Recurse -Force }
   Ensure-Directory $verify
   Invoke-Bounded $seven @('x',$found,"-o$verify",'-y') $verify 180 | Out-Null
@@ -79,12 +75,8 @@ try {
   if($installerInfos.Count -gt 0) {
     Assert ($installerInfos.Count -eq 1) 'Ambiguous installer.ini entries inside the PAF'
     $instText=Get-Content -Raw -LiteralPath $installerInfos[0].FullName
-    if($PackageRevision -eq 'r7') {
-      Assert ($instText -notmatch '(?mi)^RemoveDataDirectory\s*=') 'PAF unexpectedly contains the obsolete Data setting'
-      Assert ($instText -match '(?m)^RemoveAppDirectory=true\s*$') 'PAF is missing the expected upgrade App behavior'
-    } else {
-      Assert ($instText -match '(?m)^RemoveDataDirectory=false\s*$') 'PAF installer.ini is missing the original r5 setting'
-    }
+    Assert ($instText -notmatch '(?mi)^RemoveDataDirectory\s*=') 'PAF unexpectedly contains the obsolete Data setting'
+    Assert ($instText -match '(?m)^RemoveAppDirectory=true\s*$') 'PAF is missing the expected upgrade App behavior'
   }
   $final=Join-Path $out "OBSStudioPortable_$($m.version)_${PackageRevision}_win64.paf.exe"
   Assert (-not (Test-Path -LiteralPath $final)) "Refusing to overwrite an existing installer: $final"
@@ -115,5 +107,5 @@ try {
     Get-Content -LiteralPath "$work/official-run.log" -Tail 70 | ForEach-Object { Write-Host $_ }
   }
   if($RequirePaf) { throw $message }
-  Write-Warning 'ZIP-only fallback enabled in original r5 workflow. No independent installer is being mislabeled as official.'
+  Write-Warning 'ZIP-only fallback enabled in r8 workflow. No independent installer is being mislabeled as official.'
 }

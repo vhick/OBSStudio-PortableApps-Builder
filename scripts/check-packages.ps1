@@ -7,7 +7,8 @@ $installer=Get-Content -Raw "$stage/App/AppInfo/installer.ini"
 Assert ($ini -match 'Start=OBSStudioPortable.exe') 'Wrong PortableApps Menu launcher'
 Assert ($ini -match 'AppId=OBSStudioPortable') 'Wrong AppID'
 Assert ($ini -match "PackageVersion=$([regex]::Escape($m.version))\.1") 'Wrong package version'
-Assert ($installer -match 'RemoveDataDirectory=false') 'PAF upgrade would delete Data'
+Assert ($installer -notmatch '(?mi)^RemoveDataDirectory\s*=') 'Legacy installer Data flag must be omitted; Format 3.9 preserves Data by default'
+foreach($size in @(16,32,75,128,256)) { Assert (Test-Path "$stage/App/AppInfo/appicon_$size.png") "Missing Format 3.9 icon $size" }
 Test-Pe "$stage/OBSStudioPortable.exe"
 Test-Pe "$stage/App/OBSStudio/bin/64bit/obs64.exe"
 foreach($icon in @('appicon.ico','appicon_16.png','appicon_32.png')) {

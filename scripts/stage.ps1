@@ -51,7 +51,7 @@ CommercialUse=true
 
 [Version]
 PackageVersion=$($m.version).1
-DisplayVersion=$($m.version) Portable Builder r5
+DisplayVersion=$($m.version) Portable Builder r8
 
 [Control]
 Icons=1
@@ -65,7 +65,6 @@ CloseName=OBS Studio
 
 [MainDirectories]
 RemoveAppDirectory=true
-RemoveDataDirectory=false
 RemoveOtherDirectory=true
 
 [Source]
@@ -94,6 +93,14 @@ Scene references to external recordings and other media are not rewritten.
 This is not an officially endorsed OBS Project or PortableApps.com release.
 '@
 Set-Content -LiteralPath "$stage/help.txt" -Value $info -Encoding utf8
+@'
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>OBS Studio Portable</title></head>
+<body><h1>OBS Studio Portable — Independent Builder</h1>
+<p>Run OBSStudioPortable.exe. Profiles and newly created application-owned storage are preserved under Data.</p>
+<p>Windows Game Capture needs temporary graphics-hook files in ProgramData. This launcher only captures newly created OBS-owned roots and leaves existing shared content untouched.</p>
+<p>External recording and media paths are not rewritten. Not endorsed by OBS Project or PortableApps.com.</p>
+</body></html>
+'@ | Set-Content -LiteralPath "$stage/help.html" -Encoding utf8
 # Extract the genuine OBS icon from upstream signed/released executable.
 Add-Type -AssemblyName System.Drawing
 $obsExe=(Resolve-Path "$stage/App/OBSStudio/bin/64bit/obs64.exe").Path
@@ -102,7 +109,7 @@ Assert ($null -ne $icon) 'Cannot read official upstream OBS executable icon'
 try {
   $ico=[IO.File]::Create("$stage/App/AppInfo/appicon.ico")
   try { $icon.Save($ico) } finally { $ico.Dispose() }
-  foreach($size in @(16,32,48,128)) {
+  foreach($size in @(16,32,48,75,128,256)) {
     $bmp=New-Object System.Drawing.Bitmap($size,$size)
     try {
       $graphics=[System.Drawing.Graphics]::FromImage($bmp)
@@ -115,6 +122,6 @@ try {
   }
 } finally { $icon.Dispose() }
 # No Data defaults are seeded into existing installations.
-$metadata=[ordered]@{upstream=$m;launcher='Compiled OBSStudioPortable.exe';portable_storage='Data/OBSConfig';package_revision='r5'}
+$metadata=[ordered]@{upstream=$m;launcher='Compiled OBSStudioPortable.exe';portable_storage='Data/OBSConfig';package_revision='r8';graphics_hook_capture='TraceGuard/ProgramData/obs-studio-hook'}
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$stage/Other/Source/BUILD-METADATA.json" -Encoding utf8
 Write-Host "Staged OBS $($m.version) at $stage"

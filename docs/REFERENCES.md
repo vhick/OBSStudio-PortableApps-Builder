@@ -21,3 +21,8 @@ The upstream source code is unmodified; only the independent launcher/build scri
 - Microsoft `CommandLineToArgvW` library: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw (`Shell32.lib`)
 - Microsoft `/Zs` syntax-only limitation: https://learn.microsoft.com/en-us/cpp/build/reference/zs-syntax-check-only
 - Official OBS launch flags (Windows limitations for `--version` and `--help`): https://obsproject.com/kb/launch-parameters/
+
+- OBS Project confirmed portable-mode Game Capture hook folder and shared-location limitation: https://github.com/obsproject/obs-studio/issues/10486
+- OBS Windows install script creates the hook directory: https://github.com/obsproject/obs-studio/blob/master/build-aux/steam/scripts_windows/install.bat
+- OBS forum on hook recreation and uninstalling a portable OBS: https://obsproject.com/forum/threads/is-there-anything-special-you-have-to-do-to-uninstall-a-portable-copy-of-obs.183667/
+- PortableApps Format 3.9, host modifications and Data retention: https://portableapps.com/development/portableapps.com_format

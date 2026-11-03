@@ -1,181 +1,84 @@
-# OBS Studio PortableApps Builder — r7 (official PAF CLI / compression diagnosis)
+# OBS Studio PortableApps Builder r8 — ProgramData Game Capture Hook Recovery
 
-**Use the dedicated PAF-only r7 workflow, not the original r5 full build.** This revision reuses the existing successful r5 release ZIP and never recompiles OBS, recompiles the launcher, or modifies the r5 release.
+This is an independent GitHub Actions builder for the official OBS Studio Windows x64 ZIP. **r7 is the last user-confirmed successful ZIP + official PAF builder. r8 is a new, unverified Windows revision.** Do not delete your r7 releases until r8 passes a real Windows build and your Game Capture tests.
 
-## What the latest real GitHub Actions failure proves
+## What changed in r8
 
-The failed r6 PAF-only run on November 3, 2026 downloaded the existing **226 MiB** r5 ZIP, verified SHA-256, and restored the exact 2,305 application files. It also downloaded, verified, and extracted authentic PortableApps.com Installer **3.9.22**. The vendor packager executable did not exit before r6's 420-second deadline. This does **not** establish whether the program was still compressing or waiting for interactive input. No .paf.exe was published.
+- Source-based fix: OBS can create `%PROGRAMDATA%\obs-studio-hook` for Windows Game Capture even in portable mode (OBS issue #10486). While OBS is running, this folder must remain accessible in ProgramData. See `docs/PROGRAMDATA-HOOK.md`.
+- `OBSStudioPortable.exe` now includes `obs-studio-hook` in TraceGuard's before/after directory discovery. If this **top-level directory was absent before launching** portable OBS and appears during the session, the launcher copies its files and *all directory levels, including empty ones*, into `Data\TraceGuard\ProgramData\obs-studio-hook` after OBS fully exits.
+- The launcher verifies copied files byte-for-byte, refuses reparse points, checks for concurrent additions, and removes only captured files and now-empty directories. It never recursively deletes an entire ProgramData tree. Copy failures, locks, changed files and permission problems are logged to `Data\launcher.log`. Files already safely copied to Data remain there even if host cleanup is incomplete.
+- If `%PROGRAMDATA%\obs-studio-hook` **already existed when the portable launcher started**, it is left untouched. It may belong to an installed OBS copy, Streamlabs, or a previous OBS version. **Do not enable unconditional deletion**.
+- No hook DLLs are forcibly restored into ProgramData before the next launch. OBS itself installs the version it requires for Game Capture, and automatically copying a saved DLL from an older OBS version could break game capture. The stored hook copy is for preservation/diagnostics.
+- Both the ZIP and official PAF must now contain this updated r8 executable. The PAF-only job reuses the **r8 ZIP**, not the original r5 ZIP that lacks the fix.
+- Retains the v1.1.1 Universal Portable Release Publisher, default `prune: 'false'`, source checksums, authentic official PAF packager, compiled launcher and established r7 PAF diagnostics.
 
-## r7 corrections
+## Two workflows — run them in this order
 
-1. A disposable small-package **official vendor CLI preflight** is performed before downloading the large OBS r5 ZIP. It does not launch/install the probe PAF and deletes it after testing. This can detect a non-headless packager *before* using 226 MiB network traffic.
-2. The PAF-only stage repairs the existing r5 **packaging metadata** (missing 75/256 icons, help.html and an obsolete installer option) while preserving the OBS/launcher bytes and original r5 Release. This targets documented Format 3.9 requirements and may prevent an interactive metadata warning.
-3. The real OBS PAF build uses the same **unmodified, checksum-pinned official tool**. Its maximum execution allowance is increased to 18 minutes only while the tool or its children show CPU or process-tree activity. An idle process is terminated after 180 seconds, without simulating GUI clicks or opening a PAF installer wizard.
-4. The packager reports process IDs, CPU use and visible window titles, and writes its stdout/stderr or failure reason to an internal log. Failed jobs stop before publication. This helps distinguish a stuck dialog from lengthy LZMA compression.
-5. The source ZIP and release SHA-256 continue to be verified; generated PAF payloads are checked against the original portable launcher and OBS executable. The r7 PAF will be published through `vhick/portable-release-publisher@v1.1.1` with automatic pruning disabled.
-6. The successful r5 release is left unchanged. r6 was unsuccessful; r7 uses a new tag to avoid collisions.
+### 1. Build the revised r8 ZIP
 
-**Important:** This is a targeted robustness and diagnosis fix, *not proof* that the official tool can create the large OBS PAF on the GitHub runner. If the vendor's compiler requires a GUI dialog despite valid metadata, r7 will fail clearly rather than manufacture an installer. No independently created NSIS installer is relabeled as official.
+**Workflow:** `Build OBS Studio PortableApps r8 (ZIP + optional official PAF)`
 
-## Install the updated builder with GitHub Desktop
+Settings:
 
-1. Download and extract `OBSStudio-PortableApps-Builder-r7-OfficialPAF-MonitorFix.zip`.
-2. In GitHub Desktop, select your existing `OBSStudio-PortableApps-Builder` repository → **Repository → Show in Explorer**.
-3. Copy **everything inside the extracted r7 directory** into your existing builder repository, including the hidden `.github` directory. Replace the old files, but **do not touch `.git`**.
-4. Commit with `PAF-only official compiler probe and compression monitor - r7` and select **Push origin**.
-5. On GitHub, open **Actions → Official OBS PAF r7 from existing r5 ZIP (no OBS rebuild)**, then **Run workflow**.
-6. Leave `source_release_tag=portable-obs-v33.0.1-r5` (or the exact version-specific successful r5 release).
-7. Watch **Probe official packager CLI with a tiny disposable package**. If it fails, read its diagnostic log; do **not** rerun blindly. If it passes, the job downloads the existing r5 ZIP and compiles the real PAF.
-8. On success, download `OBSStudioPortable_33.0.1_r7_win64.paf.exe` and `SHA256SUMS.txt` from the new `portable-obs-v33.0.1-r7` Release. Your large r5 ZIP remains in the existing r5 Release.
-9. Before using the PAF for an upgrade, test it in a **separate** PortableApps folder: installation, launch, saving scenes/config, data preservation on reinstall, and moving the folder.
+- `upstream_version`: `latest` (or an exact stable version).
+- `build_official_paf`: `false` (default; build ZIP first, saving GitHub Actions minutes).
+- `require_official_paf`: `false` (default).
 
-**Safety:** Never install an untested PAF over production `Data`. The workflow does not publish any PAF unless real official compiler output passes PE, 7-Zip, original binary hash, appinfo and installer metadata checks. All Windows execution and installer creation are still pending for r7.
+On success, your **builder** repository's GitHub Releases will contain, for OBS 33.0.1 as an example:
 
-See `docs/PAF-RECOVERY-r7.md` for the specific CI diagnostics and `docs/WINDOWS-ACCEPTANCE.md` for the user acceptance tests. The original r5 full-build workflow still invokes a frozen copy of its working PAF script (`scripts/build-official-paf-r5.ps1`); the new r7 PAF-only workflow uses separate monitored packaging logic.
+- Tag: `portable-obs-v33.0.1-r8`
+- ZIP asset: `OBSStudioPortable_33.0.1_r8_win64.zip`
+- `SHA256SUMS.txt`
 
----
+This step downloads OBS once, compiles the launcher with the authentic OBS icon, and tests the storage and isolated hook fixture without opening the OBS GUI. If you intentionally set `build_official_paf=true`, it additionally tries an official PAF in the same release, but the default two-workflow route is recommended.
 
-## Original r5 builder documentation (preserved)
+### 2. Package the same r8 ZIP as an official PAF
 
-# OBS Studio PortableApps Builder — r5
+**Workflow:** `Official OBS PAF r8 from existing r8 ZIP (no OBS rebuild)`
 
-An independent, GitHub Actions-driven builder for **OBS Studio Windows x64**.
-No upstream fork, no manually downloaded binaries, no custom Git tokens and no Actions artifacts. Uses the official OBS binary distribution, compiled C++ launcher, OBS native portable mode, and your Universal Portable Release Publisher v1.1.1.
+Set `source_release_tag` to the tag created by step 1 (for example `portable-obs-v33.0.1-r8`). This job downloads the validated r8 ZIP and checksum, verifies the launcher and upstream OBS executable, tests the authentic headless PortableApps.com Installer with a small disposable app, and builds the OBS installer. It does **not** rebuild OBS or its launcher.
 
-> **Build status:** Project files and static tests are supplied, but this r5 has **not** been run on a Windows GitHub Actions runner at delivery time. Do not interpret an unexecuted workflow or an unbuilt PAF as a successful build. See [validation evidence](docs/VALIDATION.md).
+Successful output, for example:
 
-## r5 fixes: missing Windows linker libraries and unsupported CI command
+- Tag: `portable-obs-v33.0.1-r8-paf` — intentionally separate to avoid colliding with the ZIP release.
+- `OBSStudioPortable_33.0.1_r8_win64.paf.exe`
+- `SHA256SUMS.txt`
 
-The uploaded November 3, 2026 **r4** Windows Actions log shows that release
-resolution, publisher checks, module layout regression tests, early MSVC
-source compilation, and OBS 33.0.1 checksum verification/extraction **passed**.
-The native launcher compile then failed with **LNK2019** for `MessageBoxW` and
-`CommandLineToArgvW`, because their Win32 import libraries were not linked.
+The official PAF can only be claimed when the vendor tool compiles it and the payload and checksums actually pass validation. Neither output is included in this source-only builder ZIP.
 
-r5 explicitly links **User32.lib** and **Shell32.lib** in both full MSVC build
-paths. Its early preflight now performs a **real compile + link + PE validation**
-(without the upstream OBS icon, which is applied later) before downloading
-223.8 MB of OBS binaries. This catches missing linker libraries and other
-link-time errors upfront instead of relying on the syntax-only `/Zs` test.
+## GitHub Desktop update: step by step
 
-Also, the official OBS documentation states that `--version`/`--help` are not
-available on Windows. r5 replaces CI's unsupported `--version` smoke check
-with native `--storage-selftest`, testing junction or copy-back storage,
-empty folders, Data persistence, relocation, and unrelated host-data protection
-without opening OBS's GUI. **Full OBS GUI startup still requires a manual
-interactive Windows test.**
+1. **Keep the successful r7 release and a backup of `OBSStudioPortable\Data`.** Close OBS and any running games before upgrading.
+2. Download this r8 builder kit and extract it.
+3. Open the existing independent `OBSStudio-PortableApps-Builder` repository in GitHub Desktop.
+4. Select **Repository → Show in Explorer**.
+5. Copy everything **inside** the extracted `OBSStudio-PortableApps-Builder-r8` folder into the repository root, including `.github`. Replace matching files; **never remove `.git`**.
+6. The PAF workflow keeps its existing filename `.github/workflows/official-paf-from-r5.yml` solely so the new r8 contents **overwrite** the old r7 workflow during this copy. Its visible name is now the r8 workflow. If you previously manually created any other PAF workflow files, disable or delete obsolete duplicates.
+7. Files `scripts/restore-r5-stage.ps1` and `scripts/build-official-paf-r5.ps1` from older kits, if present, are not referenced by either r8 workflow. They can be deleted after you confirm the changes, but they do not prevent an r8 build.
+8. Return to GitHub Desktop and commit `Add safe ProgramData hook recovery - r8`. Click **Push origin**.
+9. On GitHub, select **Actions**, run the r8 ZIP workflow with default settings, and check the Windows storage/hook self-tests.
+10. Only when the r8 ZIP release succeeds, run the r8 PAF-only workflow, pointing it at that exact r8 ZIP release tag.
+11. Download the ZIP and PAF from their corresponding **Releases**. Test both in a **separate** PortableApps folder before upgrading your working installation.
 
-Neither native Windows compilation nor a full end-to-end r5 Actions build has
-been executed here. Preserve your previous working OBS builder until r5 passes.
+## Install the resulting packages
 
-## r4 fix: Windows SDK/MSVC launcher compilation
+**ZIP**: Extract the `OBSStudioPortable` folder into `X:\PortableApps\`. The launcher must be at `X:\PortableApps\OBSStudioPortable\OBSStudioPortable.exe`. Refresh the PortableApps menu if needed. Do not nest two `OBSStudioPortable` directories.
 
-The November 3, 2026 r3 live Windows Actions log confirms that stable release
-resolution, publisher checks, OBS 33 module-layout tests and the verified 214 MiB
-OBS ZIP download all passed. The next step failed with MSVC C2065 because
-`REPARSE_DATA_BUFFER` is declared in the Windows Driver Kit (`ntifs.h`), not in the
-normal user-mode Windows SDK used by Visual Studio on GitHub-hosted runners.
+**Official PAF**: In PortableApps Platform choose **Apps → Install a New App**, select the `.paf.exe` from the r8-paf release, then choose your PortableApps parent folder. Verify the app and launcher first on a throwaway install.
 
-r4 replaces the WDK-only type with a small local mount-point buffer having
-compile-time checks of the Microsoft-documented 8-byte header and 16-byte
-path-buffer offset. It retains normal Win32 `DeviceIoControl` junction creation,
-without WDK, elevation or externally launched `mklink`. `scripts/preflight-launcher.ps1`
-used MSVC `/Zs` in r4; r5 upgrades it to full compile-and-link **before**
-the large OBS download, catching both source and linker errors early. Successful full compilation,
-Windows runtime tests, PAF generation and publication still await a live run.
+**Upgrade from r7**: Close OBS and all applications using Game Capture. Back up the complete `Data` folder. For a manual ZIP upgrade, replace the root launcher, `App` and `Other` from the r8 ZIP, **never overwrite or delete existing Data**. For a PAF upgrade, test the official installer's data preservation separately before upgrading your working directory. The PortableApps.com Format preserves Data by default.
 
-## r3 fix: OBS 33 plugin folder detection
+## Important: an existing r7 `obs-studio-hook` folder
 
-The r2 GitHub Actions log from November 3, 2026 proves OBS Studio 33.0.1's
-official ZIP passed checksum and `7z t`, and extracted 2,290 files. The build
-then failed at `Missing OBS plugin directory`: r2 incorrectly required the old
-`obs-plugins` folder, which OBS 33 replaced with `core` for bundled modules.
+The folder left behind by r7 **already exists before the first r8 launch**. It may be shared, so r8 does not silently claim or remove it. The new automatic capture applies when the folder is created **during** an r8 portable session. See `docs/PROGRAMDATA-HOOK.md` for a cautious one-time migration method and how to distinguish an active shared hook from a stale leftover.
 
-r3 checks `core` and its DLL modules for OBS 33 or newer, and `obs-plugins` and
-its DLL modules for OBS 32 and earlier. It provides a new Windows regression
-fixture before downloading the large OBS ZIP, and reports available top-level
-folders if the version-specific expectation fails. It does not alter or
-invent upstream modules, and it retains r2's verified release-check fix.
+If a game's hook DLL is in use or the directory has protected permissions, a copy may succeed but deletion may be deferred. The launcher does not elevate privileges, terminate games or force-delete DLLs. This is an upstream Game Capture limitation rather than a packaging error.
 
-**Live build status:** r4 reached the linker, then failed. This r5 correction
-is statically checked here; its full Windows build, launcher runtime, and
-headless official PAF generation remain unverified.
+## Implementation / evidence limits
 
-## Outputs (created by GitHub Actions, not included in this builder kit)
+- Upstream OBS ZIP is downloaded from the official release with source digest verification; OBS itself is not recompiled. The Windows launcher is native MSVC C++ and uses `--portable` with a Data-backed configuration junction/copy fallback.
+- Headless Windows tests verify hook files, an empty directory tree, an entirely empty hook directory, and preservation of a pre-existing host hook using **private test paths only**. Recording, virtual camera, audio, plugins and real Game Capture must be tested manually on Windows.
+- Static project/YAML checks and ZIP archive validation run in the artifact-creation environment. **r8 Windows compilation and real runtime behavior are unverified until your GitHub Actions run.** Do not claim the PAF was published or tested just because its workflow is included.
+- Official references and constraints: `docs/PROGRAMDATA-HOOK.md`, `docs/SOURCE-AUDIT.md`, `docs/VALIDATION.md`, `docs/WINDOWS-ACCEPTANCE.md`, `docs/REFERENCES.md`.
 
-- `OBSStudioPortable_<upstream>_r5_win64.zip` — ready-to-extract PortableApps tree with `OBSStudioPortable.exe` at the root.
-- `OBSStudioPortable_<upstream>_r5_win64.paf.exe` — **only if** original, verified, unmodified PortableApps.com Installer v3.9.22 generates an authentic, validated installer in fully unattended mode.
-- `SHA256SUMS.txt` — generated and uploaded automatically by your Universal Portable Release Publisher v1.1.1 alongside the ZIP and any official PAF. The local build also writes `build/SHA256SUMS.txt`.
-
-**ZIP always comes first.** Official PAF is attempted by default. If the official tool cannot run headlessly, the workflow can publish a valid ZIP only. To fail instead, check **Require official PAF** on the workflow form. No generic NSIS program will be mislabeled official.
-
-## PortableApps folder structure
-
-```text
-OBSStudioPortable/
-  OBSStudioPortable.exe              [genuine native Windows executable]
-  App/
-    OBSStudio/                       [entire verified upstream OBS release]
-      bin/64bit/obs64.exe
-      data/obs-studio/
-      core/                          [OBS 33+ built-in modules]
-      plugins/                       [optional OBS 33+ third-party plugins]
-      config/                        [junction to Data on NTFS, dynamically created]
-    AppInfo/
-      appinfo.ini
-      installer.ini
-      appicon.ico                     [icon extracted from official OBS binary]
-      appicon_16.png
-      appicon_32.png
-      Launcher/OBSStudioPortable.ini  [documentation; custom C++ EXE used]
-    DefaultData/
-  Data/
-    OBSConfig/                       [OBS portable profile, scenes, browser plugin data]
-    TraceGuard/                      [new OBS-owned host roots and empty directories]
-    RecoveryConflicts/               [verified non-destructive profile merge backups]
-    launcher.log
-  Other/Source/                      [launcher source, provenance, licenses]
-  help.txt
-```
-
-## Step-by-step setup in GitHub Desktop
-
-1. Open **GitHub Desktop**. Choose **File → New repository**.
-2. Name it **OBSStudio-PortableApps-Builder** and choose your local destination. This is **not** a fork of `obsproject/obs-studio`.
-3. Choose **Repository → Show in Explorer**.
-4. Extract the downloaded builder kit ZIP. Copy **the contents inside** the `OBSStudio-PortableApps-Builder-r5` folder into the new repository's top-level folder. Keep the hidden `.github` folder. Do not remove the `.git` folder GitHub Desktop created.
-5. In GitHub Desktop, check the changed files; enter the commit summary `OBS PortableApps Builder r5 - MSVC Link Fix` and click **Commit to main**.
-6. Click **Publish repository**. Choose the Public/Private checkbox based on your intended visibility; the workflow never changes it.
-7. Open your new repository in a browser. Select **Actions**. If prompted, select **Enable workflows**.
-8. Open **Build OBS Studio PortableApps (verified ZIP + optional official PAF)** → **Run workflow**. Keep **upstream_version = latest** and **require_official_paf = false** for the first run.
-9. Observe each job step. If it succeeds, open **Releases** in **your new builder repository**. The published release is called `portable-obs-v<upstream version>-r5`. Download the validated ZIP, and the official PAF if generated.
-10. A repeat run for an existing matching release is skipped before the large OBS download. For a new upstream version, manually run again. No schedules are configured.
-
-## Install the portable app
-
-**ZIP:** Extract **OBSStudioPortable** into `X:\PortableApps\` so the executable is `X:\PortableApps\OBSStudioPortable\OBSStudioPortable.exe`. Do **not** place it in `X:\PortableApps\OBSStudioPortable\OBSStudioPortable\`. Open PortableApps Platform and refresh the menu. Launch **OBS Studio Portable**.
-
-**Official PAF (if produced):** In PortableApps Platform choose **Apps → Install a New App**, select the PAF, and choose the **parent** `X:\PortableApps` if asked. The official tool should place OBSStudioPortable inside it.
-
-**Upgrades:** Exit OBS fully. Back up `OBSStudioPortable\Data`. For a ZIP update replace `OBSStudioPortable.exe`, `App`, and `Other` only; never delete or overwrite `Data`. For official PAF, install into the existing parent directory: `installer.ini` explicitly has `RemoveDataDirectory=false`. Verify user data after reinstalling.
-
-## How portable storage and recovery work
-
-1. **Before launch** the compiled launcher locks this portable folder against a second instance and checks for other running OBS processes.
-2. It uses `--portable --disable-updater`, creates `Data\OBSConfig`, and on NTFS creates a normal Windows **directory junction** so OBS's `App\OBSStudio\config` points directly into `Data`. No administrator privileges are requested.
-3. If junctions are unavailable (e.g., FAT filesystem), the launcher uses verified copy-back and recovers left-behind physical `App\OBSStudio\config` files after an interrupted previous launch. Conflicting `Data` copies are backed up.
-4. The launcher snapshots OBS-named top-level directories under AppData, LocalAppData, ProgramData and TEMP before running; after OBS has exited it preserves newly created matching directory trees into `Data\TraceGuard`, **including folders containing no files**, and records source/destination paths in `Data\TraceGuard\relocation-manifest.tsv`.
-5. It does **not** take pre-existing host directories, move a user's recordings, migrate an installed OBS profile, force-stop OBS, modify the registry, or inject anything into Windows processes.
-6. After relocating the portable folder, the next start creates the directory junction pointing to the *new* Data path. After normal shutdown it removes the junction, preventing an updater from following it into Data. OBS scene references to absolute external file paths may require separate editing by the user.
-
-**Scope restriction:** No non-elevated, no-injection utility can safely attribute every unknown Windows file created by arbitrary OBS third-party plugins. New, OBS-named **top-level directories** are captured with a before/after comparison; arbitrary filenames elsewhere are not moved. This protects unrelated files. Treat full third-party plugin portability as a separate acceptance test.
-
-## Manual checks after first successful Actions release
-
-See [Windows acceptance checklist](docs/WINDOWS-ACCEPTANCE.md) and [troubleshooting](docs/TROUBLESHOOTING.md). The headless runner tests the compiled launcher storage lifecycle without launching OBS GUI but does not prove that full screen/video/audio capture or official PAF interactive installation works on your computer.
-
-## Licenses and limitations
-
-OBS Studio is GPL-2.0-or-later and redistributable under applicable GPL and bundled-dependency terms. This kit's C++ launcher source is GPL-2.0-or-later. OBS trademarks are their owners' property; this independent builder is not official or certified. PAF packager itself is authentic **only if** the original verified tool produces the archive. Commercial packaging and trademarks may require additional review. The official Windows ZIP may require VC++ runtime and GPU drivers already installed.
-
-See [source audit](docs/SOURCE-AUDIT.md), [validation evidence](docs/VALIDATION.md), and [sources](docs/REFERENCES.md).
+Not an official OBS Project or PortableApps.com release. Respect OBS's GPL and included dependencies; do not imply official certification or guaranteed antivirus behavior.
